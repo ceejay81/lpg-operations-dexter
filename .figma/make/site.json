@@ -1,0 +1,10 @@
+{
+  "description": "Streamline LPG retail and distribution operations with a comprehensive management system for inventory, sales, deliveries, and financial reporting.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
