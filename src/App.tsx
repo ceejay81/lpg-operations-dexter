@@ -1,10 +1,10 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 
 type IconName =
   | 'grid' | 'users' | 'user' | 'cylinder' | 'receive' | 'swap' | 'truck'
   | 'coins' | 'receipt' | 'check' | 'chart' | 'file' | 'settings' | 'search'
   | 'calendar' | 'bell' | 'chevron' | 'plus' | 'filter' | 'download' | 'close'
-  | 'money' | 'clock' | 'location' | 'phone' | 'eye' | 'flame'
+  | 'money' | 'clock' | 'location' | 'phone' | 'eye' | 'flame' | 'shield'
 
 const iconPaths: Record<IconName, ReactNode> = {
   grid: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
@@ -34,6 +34,171 @@ const iconPaths: Record<IconName, ReactNode> = {
   phone: <path d="M5 3h4l2 5-3 2a15 15 0 0 0 6 6l2-3 5 2v4c0 1-1 2-2 2A17 17 0 0 1 3 5c0-1 1-2 2-2z"/>,
   eye: <><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></>,
   flame: <path d="M13 2c1 6-4 7-4 12 0 2 1 3 3 3-1-4 4-5 3-9 3 3 5 6 5 9a8 8 0 1 1-16 0c0-6 5-9 9-15z"/>,
+  shield: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></>,
+}
+
+export interface StationSettingsData {
+  // 1. Refill Pricing & Logistics Fees
+  refill11kg: string
+  refill50kg: string
+  refill2kg: string
+  offBrandFee: string
+  offBrandRequalFee: string
+  requalTestingFee: string
+  deliveryFee: string
+  expressDeliveryFee: string
+  morningFloat: string
+  cashVarianceWarning: string
+
+  // 2. Cylinder Deposit Liabilities & Escrow
+  deposit11kg: string
+  deposit50kg: string
+  deposit2kg: string
+  scrapPenalty: string
+  valveReplacementFee: string
+
+  // 3. Tax, Invoicing & VAT Parameters
+  taxRegistration: string
+  vatRate: string
+  withholdingTaxRate: string
+  statutoryDiscount: string
+  invoicePrefix: string
+  deliveryReceiptPrefix: string
+  depositSlipPrefix: string
+  expensePrefix: string
+  birMinNumber: string
+  birPtuNumber: string
+  invoiceFooterNote: string
+
+  // 4. Credit Terms, Aging & Float Days
+  agingLockDays: string
+  agingWarnDays: string
+  maxFloatReturnDays: string
+  commCreditGraceDays: string
+  commCreditLimit: string
+  retailCreditLimit: string
+  defaultFloatLimit: string
+  retailFloatLimit: string
+  loyaltyExpiryDays: string
+
+  // 5. Cylinder Safety & QC Tolerances (RA 11592)
+  requalYears: string
+  minNetWeight11kg: string
+  maxNetWeight11kg: string
+  minNetWeight50kg: string
+  maxNetWeight50kg: string
+  minNetWeight2kg: string
+  maxNetWeight2kg: string
+  scaleTolerance: string
+  quarantineDays: string
+  lowStockYardThreshold: string
+
+  // 6. Station Identity, Permits & Security Credentials
+  stationName: string
+  brandName: string
+  stationAddress: string
+  stationOwner: string
+  stationContact: string
+  stationEmail: string
+  stationTin: string
+  doePermit: string
+  doeSccNumber: string
+  bfpFsicNumber: string
+  lguPermitNumber: string
+  depotHub: string
+  supervisorPin: string
+  closingPin: string
+}
+
+export const defaultStationSettings: StationSettingsData = {
+  // 1. Refill Pricing & Logistics Fees
+  refill11kg: '1040.00',
+  refill50kg: '4750.00',
+  refill2kg: '280.00',
+  offBrandFee: '50.00',
+  offBrandRequalFee: '150.00',
+  requalTestingFee: '80.00',
+  deliveryFee: '30.00',
+  expressDeliveryFee: '60.00',
+  morningFloat: '5000.00',
+  cashVarianceWarning: '50.00',
+
+  // 2. Cylinder Deposit Liabilities & Escrow
+  deposit11kg: '1800.00',
+  deposit50kg: '4500.00',
+  deposit2kg: '950.00',
+  scrapPenalty: '800.00',
+  valveReplacementFee: '250.00',
+
+  // 3. Tax, Invoicing & VAT Parameters
+  taxRegistration: 'Non-VAT Registered',
+  vatRate: '0.00',
+  withholdingTaxRate: '1.00',
+  statutoryDiscount: '5.00', // Senior Citizen / PWD statutory discount (RA 9994/RA 10754)
+  invoicePrefix: 'INV-2026-',
+  deliveryReceiptPrefix: 'DR-2026-',
+  depositSlipPrefix: 'DS-2026-',
+  expensePrefix: 'EXP-2026-',
+  birMinNumber: 'MIN-2026-991204',
+  birPtuNumber: 'PTU-FP-0812-2024',
+  invoiceFooterNote: 'This official receipt is system-generated and valid under BIR RR regulations.',
+
+  // 4. Credit Terms, Aging & Float Days
+  agingLockDays: '30', // Automatic hard-lock threshold
+  agingWarnDays: '15', // Early warning threshold
+  maxFloatReturnDays: '14', // Cylinder shell return window
+  commCreditGraceDays: '7',
+  commCreditLimit: '50000.00',
+  retailCreditLimit: '5000.00',
+  defaultFloatLimit: '10',
+  retailFloatLimit: '3',
+  loyaltyExpiryDays: '365',
+
+  // 5. Cylinder Safety & QC Tolerances (RA 11592)
+  requalYears: '5', // 5-Year hydrostatic cycle
+  minNetWeight11kg: '10.90',
+  maxNetWeight11kg: '11.20',
+  minNetWeight50kg: '49.70',
+  maxNetWeight50kg: '50.30',
+  minNetWeight2kg: '2.65',
+  maxNetWeight2kg: '2.80',
+  scaleTolerance: '0.15', // kg scale drift
+  quarantineDays: '30',
+  lowStockYardThreshold: '25',
+
+  // 6. Station Identity, Permits & Security Credentials
+  stationName: 'SEAGAS GenSan Distribution Hub',
+  brandName: 'SEAGAS (SEAOIL LPG)',
+  stationAddress: 'J. Catolico Ave., Brgy. Lagao, General Santos City',
+  stationOwner: 'Dexter Mendoza',
+  stationContact: '0917 882 1940 / (083) 552-8192',
+  stationEmail: 'gensan.hub@seagas.ph',
+  stationTin: '294-819-041-000 Non-VAT',
+  doePermit: 'R12-DOE-LPG-0914',
+  doeSccNumber: 'SCC-2024-R12-0481',
+  bfpFsicNumber: 'FSIC-GS-2026-1049',
+  lguPermitNumber: 'BP-GSC-2026-08192',
+  depotHub: 'SEAOIL GenSan Bulk Terminal (Makar)',
+  supervisorPin: 'OWNER1234',
+  closingPin: '4829',
+}
+
+export const SettingsContext = createContext<{
+  settings: StationSettingsData
+  setSettings: React.Dispatch<React.SetStateAction<StationSettingsData>>
+  updateSetting: (field: keyof StationSettingsData, val: string) => void
+  saveSettings: (newSettings: StationSettingsData) => void
+  resetSettings: () => void
+}>({
+  settings: defaultStationSettings,
+  setSettings: () => {},
+  updateSetting: () => {},
+  saveSettings: () => {},
+  resetSettings: () => {},
+})
+
+export function useStationSettings() {
+  return useContext(SettingsContext)
 }
 
 function Icon({ name, size = 19 }: { name: IconName; size?: number }) {
@@ -58,7 +223,7 @@ const navSections: NavSection[] = [
   {
     group: 'Assets & Stocks',
     items: [
-      { label: 'Cylinders & Tanks', icon: 'cylinder' },
+      { label: 'Cylinder Fleet', icon: 'cylinder' },
       { label: 'Store Inventory', icon: 'file' },
     ],
   },
@@ -72,6 +237,7 @@ const navSections: NavSection[] = [
   {
     group: 'Finance & Control',
     items: [
+      { label: 'AR & Risk Control', icon: 'bell' },
       { label: 'Expenses', icon: 'receipt' },
       { label: 'Daily Closing', icon: 'check' },
       { label: 'Reports & Audit', icon: 'chart' },
@@ -81,39 +247,41 @@ const navSections: NavSection[] = [
 ]
 
 const transactions = [
-  ['08:24 AM', 'Maria Santos', 'Sale', 'LPG-004521', '₱1,200', 'ST001'],
-  ['09:15 AM', 'Juan Dela Cruz', 'Exchange', 'LPG-003998', '₱600', 'ST002'],
-  ['10:02 AM', 'ABC Restaurant', 'Delivery', 'LPG-004617', '₱2,400', 'ST003'],
-  ['11:37 AM', 'Ana Reyes', 'Sale', 'LPG-004305', '₱1,200', 'ST001'],
-  ['01:18 PM', 'LM Food House', 'Exchange', 'LPG-004112', '₱600', 'ST002'],
+  ['08:24 AM', 'Maria Santos', 'Sale', 'SG-11-004521', '₱1,200', 'ST001'],
+  ['09:15 AM', 'Juan Dela Cruz', 'Exchange', 'SG-11-003998', '₱600', 'ST002'],
+  ['10:02 AM', 'ABC Restaurant', 'Delivery', 'SG-11-004617', '₱2,400', 'ST003'],
+  ['11:37 AM', 'Ana Reyes', 'Sale', 'SG-11-004305', '₱1,200', 'ST001'],
+  ['01:18 PM', 'LM Food House', 'Exchange', 'SG-11-004112', '₱600', 'ST002'],
 ]
 
 const pageData: Record<string, { subtitle: string; columns: string[]; rows: string[][]; action: string }> = {
   Customers: { subtitle: 'Manage customer profiles and transaction relationships.', action: 'Add Customer', columns: ['Customer', 'Company Name','Contact', 'Address', 'Tax No.', 'Preferred Brand', 'Status'], rows: [
-    ['Maria Santos', '0917 234 8891', 'Mabini St., Makati', 'TIN-882-194', 'Petron Gasul', 'Active'],
-    ['Juan Dela Cruz', '0928 441 2098', 'P. Burgos St., Pasig', 'TIN-342-818', 'Solane', 'Active'],
-    ['ABC Restaurant', '0918 309 1204', 'Ortigas Ave., Mandaluyong', 'TIN-119-822', 'Petron Gasul', 'Business'],
-    ['Ana Reyes', '0915 779 6214', 'J.P. Rizal, Makati', '—', 'Solane', 'Active'],
-    ['LM Food House', '0998 232 6180', 'Shaw Blvd., Mandaluyong', 'TIN-441-512', 'Phoenix Super LPG', 'Business'],
+    ['Maria Santos', '0917 234 8891', 'J. Catolico St., Brgy. Lagao, GenSan', 'TIN-882-194', 'SEAGAS', 'Active'],
+    ['Juan Dela Cruz', '0928 441 2098', 'P. Acharon Blvd., Brgy. Calumpang, GenSan', 'TIN-342-818', 'SEAGAS', 'Active'],
+    ['ABC Restaurant', '0918 309 1204', 'National Highway, Brgy. Labangal, GenSan', 'TIN-119-822', 'SEAGAS', 'Business'],
+    ['Ana Reyes', '0915 779 6214', 'Aparente St., Brgy. City Heights, GenSan', '—', 'SEAGAS', 'Active'],
+    ['LM Food House', '0998 232 6180', 'Makar Junction, Brgy. Labangal, GenSan', 'TIN-441-512', 'SEAGAS', 'Business'],
   ]},
   Staff: { subtitle: 'Manage team details, roles, and system access.', action: 'Add Staff Member', columns: ['Staff Code', 'Full Name', 'Position', 'Contact', 'Date Started', 'Status'], rows: [
     ['ST001', 'Paolo Mendoza', 'Cashier', '0917 555 0101', 'Jan 12, 2024', 'Active'],
-    ['ST002', 'Leah Villanueva', 'Office Staff', '0917 555 0102', 'Mar 04, 2024', 'Active'],
-    ['ST003', 'Mark Ramos', 'Delivery Driver', '0917 555 0103', 'Jun 18, 2025', 'On delivery'],
-    ['ST004', 'Cris Bautista', 'Inventory Staff', '0917 555 0104', 'Sep 08, 2025', 'Active'],
+    ['ST002', 'Leah Villanueva', 'Office Administrator', '0917 555 0102', 'Mar 04, 2024', 'Active'],
+    ['ST003', 'Mark Ramos', 'Delivery Driver', '0917 555 0103', 'Jun 18, 2025', 'Active'],
+    ['ST004', 'Cris Bautista', 'Yard Custodian', '0917 555 0104', 'Sep 08, 2025', 'Active'],
+    ['ST005', 'Nilo Cruz', 'Delivery Driver', '0917 555 0105', 'Nov 12, 2025', 'Active'],
+    ['ST006', 'Ronald David', 'Delivery Driver', '0917 555 0106', 'Feb 03, 2026', 'Active'],
   ]},
   'Cylinder Inventory': { subtitle: 'Track every cylinder across locations and movements.', action: 'Register Cylinder', columns: ['Serial Number', 'Brand', 'Tare Weight', 'Status', 'Location', 'Linked Customer'], rows: [
-    ['LPG-004521', 'Petron Gasul', '13.4 kg', 'With Customer', 'Makati', 'Maria Santos'],
-    ['LPG-003998', 'Solane', '12.8 kg', 'Empty', 'Main Warehouse', '—'],
-    ['LPG-004617', 'Petron Gasul', '13.2 kg', 'On delivery', 'Truck 03', 'ABC Restaurant'],
-    ['LPG-004305', 'Solane', '12.9 kg', 'Full', 'Main Warehouse', '—'],
-    ['LPG-004112', 'Phoenix Super LPG', '13.1 kg', 'Damaged', 'Inspection Bay', '—'],
+    ['SG-11-004521', 'SEAGAS', '13.4 kg', 'With Customer', 'Brgy. Lagao Hub', 'Maria Santos'],
+    ['SG-11-003998', 'SEAGAS', '12.8 kg', 'Empty', 'GenSan Main Yard', '—'],
+    ['SG-11-004617', 'SEAGAS', '13.2 kg', 'On delivery', 'Delivery Multi-cab 03', 'ABC Restaurant'],
+    ['SG-11-004305', 'SEAGAS', '12.9 kg', 'Full', 'GenSan Main Yard', '—'],
+    ['SG-11-004112', 'SEAGAS', '13.1 kg', 'Damaged', 'Quarantine Bay (RA 11592)', '—'],
   ]},
   Deliveries: { subtitle: 'Assign, monitor, and complete customer deliveries.', action: 'New Delivery', columns: ['Delivery ID', 'Customer', 'Address', 'Cylinder', 'Driver', 'Status'], rows: [
-    ['DEL-1018', 'ABC Restaurant', 'Ortigas Ave., Mandaluyong', 'LPG-004617', 'ST003 · Mark Ramos', 'In transit'],
-    ['DEL-1019', 'Maria Santos', 'Mabini St., Makati', 'LPG-004722', 'ST005 · Nilo Cruz', 'Pending'],
-    ['DEL-1020', 'LM Food House', 'Shaw Blvd., Mandaluyong', 'LPG-004811', 'Unassigned', 'Pending'],
-    ['DEL-1017', 'Ana Reyes', 'J.P. Rizal, Makati', 'LPG-004305', 'ST003 · Mark Ramos', 'Completed'],
+    ['DEL-1018', 'ABC Restaurant', 'National Highway, Brgy. Labangal, GenSan', 'SG-11-004617', 'ST003 · Mark Ramos', 'In transit'],
+    ['DEL-1019', 'Maria Santos', 'J. Catolico St., Brgy. Lagao, GenSan', 'SG-11-004722', 'ST005 · Nilo Cruz', 'Pending'],
+    ['DEL-1020', 'LM Food House', 'Makar Junction, Brgy. Labangal, GenSan', 'SG-11-004811', 'Unassigned', 'Pending'],
+    ['DEL-1017', 'Ana Reyes', 'Aparente St., Brgy. City Heights, GenSan', 'SG-11-004305', 'ST003 · Mark Ramos', 'Completed'],
   ]},
   Loans: { subtitle: 'Monitor cylinder loans, balances, and repayments.', action: 'Record Loan', columns: ['Loan ID', 'Customer', 'Principal', 'Outstanding', 'Interest Paid', 'Status'], rows: [
     ['LN-2026-041', 'ABC Restaurant', '₱80,000', '₱62,000', '₱1,250', 'Current'],
@@ -132,6 +300,107 @@ const pageData: Record<string, { subtitle: string; columns: string[]; rows: stri
     ['Oct 16, 2026', '10:28 AM', 'ST003', 'Delivery completed', 'ABC Restaurant', 'DEL-1017'],
     ['Oct 16, 2026', '09:15 AM', 'ST002', 'Exchange transaction', 'Juan Dela Cruz', 'INV-2026-0314'],
   ]},
+}
+
+// --- AR & 30-DAY CREDIT RISK ENGINE ---
+export interface CustomerRisk {
+  name: string
+  lendingTier: 'Full Deposit' | 'Mutual Agreement' | 'Partial Deposit'
+  creditLimit: number
+  currentBalance: number
+  oldestInvoiceDays: number   // ≥30 → Hard Lock
+  currentFloat: number        // > maxFloatLimit → Hard Lock
+  maxFloatLimit: number
+  overdueInvoices: { id: string; amount: string; daysOld: number }[]
+}
+
+export const customerRiskData: CustomerRisk[] = [
+  {
+    name: 'Maria Santos',
+    lendingTier: 'Full Deposit',
+    creditLimit: 2500,
+    currentBalance: 0,
+    oldestInvoiceDays: 5,
+    currentFloat: 1,
+    maxFloatLimit: 3,
+    overdueInvoices: [],
+  },
+  {
+    name: 'ABC Restaurant',
+    lendingTier: 'Mutual Agreement',
+    creditLimit: 80000,
+    currentBalance: 62000,
+    oldestInvoiceDays: 38,   // BREACH: >30 Days
+    currentFloat: 8,
+    maxFloatLimit: 10,
+    overdueInvoices: [
+      { id: 'INV-2026-0201', amount: '₱12,000', daysOld: 38 },
+      { id: 'INV-2026-0188', amount: '₱8,500', daysOld: 42 },
+    ],
+  },
+  {
+    name: "Aling Nena",
+    lendingTier: 'Partial Deposit',
+    creditLimit: 5000,
+    currentBalance: 4800,
+    oldestInvoiceDays: 14,
+    currentFloat: 2,
+    maxFloatLimit: 4,
+    overdueInvoices: [],
+  },
+  {
+    name: 'LM Food House',
+    lendingTier: 'Mutual Agreement',
+    creditLimit: 60000,
+    currentBalance: 42000,
+    oldestInvoiceDays: 18,
+    currentFloat: 12,        // BREACH: 12 > max limit of 10
+    maxFloatLimit: 10,
+    overdueInvoices: [],
+  },
+  {
+    name: "Nanay Gloria Bakery",
+    lendingTier: 'Partial Deposit',
+    creditLimit: 30000,
+    currentBalance: 18500,
+    oldestInvoiceDays: 8,
+    currentFloat: 4,
+    maxFloatLimit: 6,
+    overdueInvoices: [],
+  },
+]
+
+export type LockReason = 'AGING' | 'FLOAT' | 'BOTH' | null
+
+export function evaluateRisk(risk: CustomerRisk, customAgingThreshold: number = 30): {
+  locked: boolean
+  reason: LockReason
+  agingBreach: boolean
+  floatBreach: boolean
+} {
+  const agingBreach = risk.oldestInvoiceDays >= customAgingThreshold
+  const floatBreach = risk.currentFloat > risk.maxFloatLimit
+  const locked = agingBreach || floatBreach
+  const reason: LockReason = agingBreach && floatBreach ? 'BOTH' : agingBreach ? 'AGING' : floatBreach ? 'FLOAT' : null
+  return { locked, reason, agingBreach, floatBreach }
+}
+
+export const quarantinedFleetSerials = ['SG-11-002109', 'SG-11-007731', 'SG-11-004112']
+
+export function checkQuarantineStatus(serial: string): { isQuarantined: boolean; reason: string } {
+  const s = serial.trim().toUpperCase()
+  if (
+    quarantinedFleetSerials.some(q => s.includes(q)) ||
+    s.includes('QUARANTINE') ||
+    s.includes('EXPIRED') ||
+    s.includes('DAMAGED')
+  ) {
+    return {
+      isQuarantined: true,
+      reason: 'This cylinder is locked in Quarantine (Expired 5-Year Safety Stamp or Damaged Shell). Illegal to sell or load under LPG Safety Law (RA 11592).',
+    }
+  }
+  return { isQuarantined: false, reason: '' }
 }
 
 function Button({ children, variant = 'primary', icon, onClick, type = 'button' }: { children: ReactNode; variant?: 'primary'|'secondary'|'ghost'; icon?: IconName; onClick?: () => void; type?: 'button'|'submit' }) {
@@ -156,13 +425,312 @@ function SearchField({ value, onChange, placeholder }: { value: string; onChange
   return <label className="search-field"><Icon name="search" size={17}/><input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}/></label>
 }
 
+function isRightAlignedColumn(colName: string): boolean {
+  const c = colName.toLowerCase()
+  return (
+    c.includes('amount') ||
+    c.includes('price') ||
+    c.includes('cost') ||
+    c.includes('balance') ||
+    c.includes('limit') ||
+    c.includes('weight') ||
+    c.includes('quantity') ||
+    c.includes('qty') ||
+    c.includes('stock') ||
+    c.includes('gross') ||
+    c.includes('net') ||
+    c.includes('margin') ||
+    c.includes('action') ||
+    c.includes('quick action') ||
+    c.includes('status & action') ||
+    c.includes('principal') ||
+    c.includes('outstanding') ||
+    c.includes('subtotal') ||
+    c.includes('total') ||
+    c.includes('paid')
+  )
+}
+
+interface StatItem {
+  label: string
+  value: string
+  sub?: string
+  hint?: string
+  status?: 'ok' | 'warning' | 'danger' | 'info' | 'neutral'
+}
+
+function StatStrip({ stats, items, className }: { stats?: StatItem[]; items?: StatItem[]; className?: string }) {
+  const list = items || stats || []
+  return (
+    <div className={`stat-strip ${className || ''}`}>
+      {list.map((s, i) => (
+        <div key={s.label || i} className="stat-cell">
+          <span className="stat-label">{s.label}</span>
+          <strong className={`stat-value ${s.status ? `stat-${s.status}` : ''}`}>{s.value}</strong>
+          {(s.hint || s.sub) && <small className="stat-hint">{s.hint || s.sub}</small>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+type StatusTone = 'ok' | 'warn' | 'danger' | 'info' | 'neutral'
+
+function StatusChip({ tone = 'neutral', children }: { tone?: StatusTone; children: ReactNode }) {
+  return (
+    <span className="status-chip">
+      <span className={`status-chip-dot ${tone}`} />
+      <span className="status-chip-text">{children}</span>
+    </span>
+  )
+}
+
+function getStatusTone(status: string): StatusTone {
+  const s = String(status).toLowerCase()
+  if (s.includes('full') || s.includes('ready') || s.includes('valid') || s.includes('completed') || s.includes('delivered') || s.includes('active') || s.includes('balanced') || s.includes('paid') || s.includes('verified') || s.includes('passed') || s.includes('intact')) return 'ok'
+  if (s.includes('customer') || s.includes('processing') || s.includes('open') || s.includes('info')) return 'info'
+  if (s.includes('truck') || s.includes('transit') || s.includes('due') || s.includes('pending') || s.includes('draft') || s.includes('partial') || s.includes('warning')) return 'warn'
+  if (s.includes('quarantine') || s.includes('defect') || s.includes('expired') || s.includes('illegal') || s.includes('overdue') || s.includes('breached') || s.includes('locked') || s.includes('damaged') || s.includes('danger')) return 'danger'
+  return 'neutral'
+}
+
+function parseRequal(requal: string): { label: string; tone: StatusTone } {
+  const r = requal.toLowerCase()
+  if (r.includes('expired') || r.includes('illegal')) {
+    return { label: 'Expired', tone: 'danger' }
+  }
+  if (r.includes('due soon') || r.includes('due oct')) {
+    const match = requal.match(/[A-Za-z]{3}\s*\d{4}/)
+    return { label: match ? `Due ${match[0]}` : 'Due Soon', tone: 'warn' }
+  }
+  const match = requal.match(/[A-Za-z]{3}\s*\d{4}/)
+  return { label: match ? match[0] : 'Valid', tone: 'ok' }
+}
+
+interface CompositionSegment {
+  label: string
+  value: number
+  color: string
+}
+
+function CompositionBar({ segments, title, subtitle }: { segments: CompositionSegment[]; title?: string; subtitle?: string }) {
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1
+  return (
+    <div className="composition-panel">
+      {(title || subtitle) && (
+        <div className="composition-header">
+          <div>
+            {title && <span className="composition-title">{title}</span>}
+            {subtitle && <p className="composition-subtitle">{subtitle}</p>}
+          </div>
+        </div>
+      )}
+      <div className="composition-bar" role="progressbar" aria-label="Asset distribution">
+        {segments.map(s => (
+          <div
+            key={s.label}
+            style={{ width: `${(s.value / total) * 100}%`, background: s.color }}
+            title={`${s.label}: ${s.value.toLocaleString()} (${Math.round((s.value / total) * 100)}%)`}
+          />
+        ))}
+      </div>
+      <dl className="composition-legend">
+        {segments.map(s => (
+          <div key={s.label} className="legend-item">
+            <span className="legend-dot" style={{ background: s.color }} />
+            <dt className="legend-label">{s.label}</dt>
+            <dd className="legend-count">{s.value.toLocaleString()}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+function FleetCompositionBar() {
+  const segments = [
+    { label: 'Full Ready in Yard', value: 428, color: '#078a76' },
+    { label: 'With Suki Customer', value: 290, color: '#1877c9' },
+    { label: 'Empty Basyo in Yard', value: 163, color: '#5297cb' },
+    { label: 'On Delivery Trucks', value: 78, color: '#c97818' },
+    { label: 'Quarantine Bay (RA 11592)', value: 65, color: '#c64a50' },
+  ]
+  return (
+    <div className="composition-panel">
+      <div className="composition-header">
+        <div>
+          <span className="composition-title">Total Active Fleet: <strong>1,024 SEAGAS Cylinders</strong></span>
+          <p className="composition-subtitle">Proportional physical asset distribution across GenSan operations</p>
+        </div>
+        <div className="composition-badges">
+          <span className="composition-chip ok">428 Ready for Dispatch</span>
+          <span className="composition-chip danger">65 Inspection Hold</span>
+        </div>
+      </div>
+      <div className="composition-bar" role="progressbar" aria-label="Cylinder fleet distribution">
+        {segments.map(s => (
+          <div
+            key={s.label}
+            style={{ width: `${(s.value / 1024) * 100}%`, background: s.color }}
+            title={`${s.label}: ${s.value} (${((s.value / 1024) * 100).toFixed(1)}%)`}
+          />
+        ))}
+      </div>
+      <dl className="composition-legend">
+        {segments.map(s => (
+          <div key={s.label} className="legend-item">
+            <span className="legend-dot" style={{ background: s.color }} />
+            <dt className="legend-label">{s.label}</dt>
+            <dd className="legend-count">{s.value.toLocaleString()}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
+function CylinderRegisterTable({
+  rows,
+  onInspect,
+}: {
+  rows: string[][]
+  onInspect: (row: string[]) => void
+}) {
+  return (
+    <div className="ops-table-wrap">
+      <table className="ops-table-fixed">
+        <colgroup>
+          <col style={{ width: '150px' }} />
+          <col style={{ width: '170px' }} />
+          <col style={{ width: '90px' }} />
+          <col style={{ width: '150px' }} />
+          <col style={{ width: '100px' }} />
+          <col style={{ width: '160px' }} />
+          <col /> {/* flexible: custody */}
+          <col style={{ width: '140px' }} />
+          <col style={{ width: '88px' }} />
+        </colgroup>
+        <thead>
+          <tr>
+            <th className="text-left">Serial</th>
+            <th className="text-left">Brand</th>
+            <th className="text-right">Size (kg)</th>
+            <th className="text-left">Valve</th>
+            <th className="text-right">Tare (kg)</th>
+            <th className="text-left">Status</th>
+            <th className="text-left">Location / Carrier</th>
+            <th className="text-left">Requal due</th>
+            <th className="text-right"><span className="sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((tank, idx) => {
+            const serial = tank[0]
+            const brand = tank[1]
+            const sizeNum = parseFloat(tank[2]) || 11.0
+            const valve = tank[3].replace(' Threaded', '').replace(' (Snap-On)', ' (SNP)')
+            const tareNum = parseFloat(tank[4]) || 13.0
+            const status = tank[5]
+            const custody = tank[6]
+            const requal = tank[7]
+
+            const statusTone = getStatusTone(status)
+            const requalParsed = parseRequal(requal)
+
+            return (
+              <tr key={serial || idx} onClick={() => onInspect(tank)} className="clickable">
+                <td className="cell-mono cell-truncate">{serial}</td>
+                <td className="cell-truncate" title={brand}>{brand}</td>
+                <td className="text-right tabular-nums">{sizeNum.toFixed(1)}</td>
+                <td className="cell-truncate">{valve}</td>
+                <td className="text-right tabular-nums">{tareNum.toFixed(1)}</td>
+                <td>
+                  <StatusChip tone={statusTone}>{status}</StatusChip>
+                </td>
+                <td className="cell-truncate" title={custody}>{custody}</td>
+                <td>
+                  <StatusChip tone={requalParsed.tone}>{requalParsed.label}</StatusChip>
+                </td>
+                <td className="text-right">
+                  <button
+                    type="button"
+                    className="ops-action-btn"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onInspect(tank)
+                    }}
+                    title="Inspect cylinder details"
+                  >
+                    Inspect
+                  </button>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function DataTable({ columns, rows, onRowClick }: { columns: string[]; rows: string[][]; onRowClick?: (row: string[]) => void }) {
-  return <div className="table-wrap"><table><thead><tr>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={`${row[0]}-${i}`} onClick={() => onRowClick?.(row)} className={onRowClick ? 'clickable' : ''}>{row.map((cell, j) => <td key={j}>{j === 0 && columns[0] === 'Customer' ? <span className="customer-cell"><span className="mini-avatar">{cell.split(' ').map(x => x[0]).slice(0, 2).join('')}</span>{cell}</span> : (columns[j].includes('Status') || columns[j].includes('Requal') || columns[j] === 'Suki Badge' ? <Badge>{cell}</Badge> : columns[j] === 'Movement Type' ? <span className={`movement-badge movement-${cell.toLowerCase()}`}>{cell}</span> : cell)}</td>)}</tr>)}</tbody></table></div>
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            {columns.map(c => {
+              const rightAlign = isRightAlignedColumn(c)
+              return (
+                <th key={c} style={{ textAlign: rightAlign ? 'right' : 'left' }}>
+                  {c}
+                </th>
+              )
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={`${row[0]}-${i}`} onClick={() => onRowClick?.(row)} className={onRowClick ? 'clickable' : ''}>
+              {row.map((cell, j) => {
+                const rightAlign = isRightAlignedColumn(columns[j])
+                const isNumeric = cell.startsWith('₱') || /^\d+(\.\d+)?%?$/.test(cell.trim()) || cell.endsWith('kg') || cell.endsWith('pcs')
+                return (
+                  <td
+                    key={j}
+                    style={{
+                      textAlign: rightAlign ? 'right' : 'left',
+                      fontVariantNumeric: isNumeric ? 'tabular-nums' : undefined,
+                    }}
+                  >
+                    {j === 0 && columns[0] === 'Customer' ? (
+                      <span className="customer-cell">
+                        <span className="mini-avatar">{cell.split(' ').map(x => x[0]).slice(0, 2).join('')}</span>
+                        {cell}
+                      </span>
+                    ) : columns[j].includes('Status') || columns[j].includes('Requal') ? (
+                      <StatusChip tone={getStatusTone(cell)}>{cell}</StatusChip>
+                    ) : columns[j] === 'Suki Badge' || columns[j] === 'Lending Tier' ? (
+                      <Badge>{cell}</Badge>
+                    ) : columns[j] === 'Movement Type' ? (
+                      <span className={`movement-badge movement-${cell.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}>{cell}</span>
+                    ) : (
+                      cell
+                    )}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 function Sidebar({ page, setPage }: { page: string; setPage: (p: string) => void }) {
   return <aside className="sidebar">
-    <div className="brand"><div className="brand-mark"><Icon name="flame" size={27}/></div><div><strong>LPG Pro</strong><span>Operations System</span></div></div>
+    <div className="brand"><div className="brand-mark"><Icon name="flame" size={27}/></div><div><strong>SEAGAS</strong><span>GenSan LPG Control</span></div></div>
     <nav aria-label="Primary navigation">
       {navSections.map(sec => (
         <div key={sec.group} className="nav-group">
@@ -170,7 +738,7 @@ function Sidebar({ page, setPage }: { page: string; setPage: (p: string) => void
           {sec.items.map(item => {
             const isActive =
               page === item.label ||
-              (item.label === 'Cylinders & Tanks' && (page === 'Daily Cylinder Movement Log' || page === 'Cylinders')) ||
+              (item.label === 'Cylinder Fleet' && (page === 'Cylinders & Tanks' || page === 'Daily Cylinder Movement Log' || page === 'Cylinders')) ||
               (item.label === 'Reports & Audit' && (page === 'Reports & Analytics' || page === 'Daily Stock Movement Report' || page === 'Audit Logs')) ||
               (item.label === 'POS (Sales & Exchange)' && page === 'Sales & Exchange') ||
               (item.label === 'Receiving & Stock In' && page === 'Receiving')
@@ -188,7 +756,7 @@ function Sidebar({ page, setPage }: { page: string; setPage: (p: string) => void
         </div>
       ))}
     </nav>
-    <div className="sidebar-art"><div className="cylinder-art"><Icon name="cylinder" size={46}/></div><strong>Safe Fuel</strong><span>Brighter Tomorrows</span><i></i><small>Version 1.0.0</small></div>
+    <div className="sidebar-art"><div className="cylinder-art"><Icon name="cylinder" size={46}/></div><strong>SEAOIL SEAGAS</strong><span>GenSan Operation</span><i></i><small>Version 2.4.0</small></div>
   </aside>
 }
 
@@ -218,169 +786,469 @@ function ClosingChecklist({ checked, toggle }: { checked: boolean[]; toggle: (i:
 }
 
 function AuditActivity() {
-  const entries = [['01:18 PM','Invoice created (INV-2026-0315)','by ST002 · LM Food House · ₱600'],['11:42 AM','Expense recorded','by ST001 · Fuel · ₱1,500'],['10:28 AM','Delivery completed','by ST003 · LPG-004617 · ABC Restaurant'],['09:15 AM','Exchange transaction','by ST002 · LPG-003998 · Juan Dela Cruz'],['08:24 AM','Invoice created (INV-2026-0314)','by ST001 · Maria Santos · ₱1,200']]
+  const entries = [['01:18 PM','Invoice created (INV-2026-0315)','by ST002 · LM Food House · ₱600'],['11:42 AM','Expense recorded','by ST001 · Fuel · ₱1,500'],['10:28 AM','Delivery completed','by ST003 · SG-11-004617 · ABC Restaurant'],['09:15 AM','Exchange transaction','by ST002 · SG-11-003998 · Juan Dela Cruz'],['08:24 AM','Invoice created (INV-2026-0314)','by ST001 · Maria Santos · ₱1,200']]
   return <Card className="audit-card"><CardTitle icon="file" title="Audit Activity" action={<Button variant="ghost">View All <span>→</span></Button>}/><div className="timeline">{entries.map((e,i) => <div className="timeline-row" key={e[0]}><i className={`timeline-dot dot-${i}`}/><time>{e[0]}</time><div><strong>{e[1]}</strong><span>{e[2]}</span></div></div>)}</div></Card>
 }
 
+// ---------------------------------------------------------------------------
+// InvoiceData — covers all 21 invoice checklist items
+// ---------------------------------------------------------------------------
 interface InvoiceData {
-  invoiceNo?: string
-  date?: string
+  invoiceNo?: string          // 1. Invoice number / series
+  date?: string               // 2. Date
+  time?: string               // 2. Time
+  // Seller identity — 3
+  sellerName?: string
+  sellerAddress?: string
+  sellerTin?: string
+  sellerVatStatus?: string
+  // Customer identity — 4
   customerName?: string
+  customerBiz?: string
   address?: string
   contact?: string
   tin?: string
+  // Staff & delivery linkage — 17, 18
   staffCode?: string
   staffName?: string
+  deliveryRef?: string
+  driverName?: string
+  // Payment — 13, 14
   paymentMethod?: string
+  amountPaid?: number
+  creditOutstanding?: number
+  // Cylinder transaction — 15, 16
   serial?: string
   brand?: string
   netWeight?: string
-  amount?: string
-  subtotal?: string
-  swapFee?: string
-  depositFee?: string
-  returnedSerial?: string
+  cylinderUnitPrice?: number
+  depositFee?: number
   hasReturnedEmpty?: boolean
+  returnedSerial?: string
+  // Surcharges
+  swapFee?: number
+  // Accessories — 7, 8
+  additionalItems?: { name: string; sku: string; qty: number; unitPrice: number }[]
+  // Discount — 9
+  discountLabel?: string
+  discountAmount?: number
+  // VAT classification — 10
+  vatClassification?: 'vatable' | 'zero-rated' | 'exempt'
+  // Status — 20
+  status?: 'active' | 'voided' | 'corrected'
+  voidReason?: string
+  correctedRef?: string
 }
 
 function InvoiceModal({ data, onClose }: { data?: InvoiceData; onClose: () => void }) {
+  const { settings } = useStationSettings()
   const [toast, setToast] = useState('')
-  const inv = {
-    invoiceNo: data?.invoiceNo || 'INV-2026-0315',
-    date: data?.date || 'October 16, 2026',
-    customerName: data?.customerName || 'Maria Santos',
-    address: data?.address || 'Mabini St., Makati',
-    contact: data?.contact || '0917 234 8891',
-    tin: data?.tin || 'TIN-882-194',
-    staffCode: data?.staffCode || 'ST001',
-    staffName: data?.staffName || 'Paolo Mendoza',
-    paymentMethod: data?.paymentMethod || 'Cash',
-    serial: data?.serial || 'LPG-004521',
-    brand: data?.brand || 'Petron Gasul',
-    netWeight: data?.netWeight || '11.0 kg',
-    amount: data?.amount || '₱1,200.00',
-    subtotal: data?.subtotal || '₱1,200.00',
-    returnedSerial: data?.returnedSerial || 'LPG-003871',
-    hasReturnedEmpty: data?.hasReturnedEmpty !== undefined ? data.hasReturnedEmpty : true,
+  const [showVoidConfirm, setShowVoidConfirm] = useState(false)
+  const [voided, setVoided] = useState(data?.status === 'voided')
+
+  // ── Resolved invoice data with sensible demo defaults ──────────────────
+  const inv: Required<Omit<InvoiceData, 'additionalItems'>> & { additionalItems: NonNullable<InvoiceData['additionalItems']> } = {
+    invoiceNo:          data?.invoiceNo          || `${settings.invoicePrefix}0315`,
+    date:               data?.date               || 'October 16, 2026',
+    time:               data?.time               || '08:24 AM',
+    sellerName:         data?.sellerName         || `${settings.stationName} (${settings.brandName})`,
+    sellerAddress:      data?.sellerAddress      || settings.stationAddress,
+    sellerTin:          data?.sellerTin          || settings.stationTin,
+    sellerVatStatus:    data?.sellerVatStatus    || `${settings.taxRegistration} · BIR COR Active`,
+    customerName:       data?.customerName       || 'Maria Santos',
+    customerBiz:        data?.customerBiz        || '—',
+    address:            data?.address            || 'J. Catolico St., Brgy. Lagao, GenSan',
+    contact:            data?.contact            || '0917 234 8891',
+    tin:                data?.tin                || 'TIN-882-194',
+    staffCode:          data?.staffCode          || 'ST001',
+    staffName:          data?.staffName          || 'Paolo Mendoza',
+    deliveryRef:        data?.deliveryRef        || '—',
+    driverName:         data?.driverName         || '—',
+    paymentMethod:      data?.paymentMethod      || 'Cash',
+    amountPaid:         data?.amountPaid         ?? (parseFloat(settings.refill11kg) || 1040),
+    creditOutstanding:  data?.creditOutstanding  ?? 0,
+    serial:             data?.serial             || 'SG-11-004521',
+    brand:              data?.brand              || settings.brandName,
+    netWeight:          data?.netWeight          || '11.0 kg',
+    cylinderUnitPrice:  data?.cylinderUnitPrice  ?? (parseFloat(settings.refill11kg) || 1040),
+    depositFee:         data?.depositFee         ?? 0,
+    hasReturnedEmpty:   data?.hasReturnedEmpty   !== undefined ? data.hasReturnedEmpty : true,
+    returnedSerial:     data?.returnedSerial     || 'SG-11-003871',
+    swapFee:            data?.swapFee            ?? 0,
+    additionalItems:    data?.additionalItems    || [],
+    discountLabel:      data?.discountLabel      || '',
+    discountAmount:     data?.discountAmount     ?? 0,
+    vatClassification:  data?.vatClassification  || (settings.taxRegistration.includes('12% VAT') ? 'vatable' : 'exempt'),
+    status:             data?.status             || 'active',
+    voidReason:         data?.voidReason         || '',
+    correctedRef:       data?.correctedRef       || '',
   }
+
+  // ── Computation block ──────────────────────────────────────────────────
+  const cylinderLine  = inv.cylinderUnitPrice + inv.swapFee
+  const depositLine   = inv.depositFee
+  const accsTotal     = inv.additionalItems.reduce((s, i) => s + i.unitPrice * i.qty, 0)
+  const discountAmt   = inv.discountAmount
+  const subtotal      = cylinderLine + depositLine + accsTotal - discountAmt
+  // VAT — Driven dynamically by station settings & invoice classification
+  const configuredVatRate = parseFloat(settings.vatRate) || 0
+  const isVatable     = inv.vatClassification === 'vatable' || (settings.taxRegistration.includes('12% VAT') && inv.vatClassification !== 'exempt')
+  const vatAmount     = isVatable && configuredVatRate > 0 ? (subtotal * configuredVatRate) / (100 + configuredVatRate) : 0
+  const netOfVat      = isVatable ? subtotal - vatAmount : subtotal
+  const totalDue      = subtotal   // inclusive amount
+  const balance       = totalDue - inv.amountPaid
+  const isCreditSale  = inv.paymentMethod.toLowerCase().includes('credit') || inv.paymentMethod.toLowerCase().includes('paautang')
+  const isActive      = !voided && inv.status !== 'voided'
 
   function handlePrint() {
     setToast(`Sent ${inv.invoiceNo} to EPSON POS Receipt Printer!`)
     setTimeout(() => setToast(''), 2500)
   }
 
+  function handleVoid() {
+    setVoided(true)
+    setShowVoidConfirm(false)
+    setToast(`Invoice ${inv.invoiceNo} voided and flagged in audit trail.`)
+    setTimeout(() => setToast(''), 2800)
+  }
+
+  const statusLabel = voided ? 'VOIDED' : inv.status === 'corrected' ? 'CORRECTED' : 'OFFICIAL'
+  const statusColor = voided ? '#c64a50' : inv.status === 'corrected' ? '#b76307' : '#078a76'
+
   return (
     <div className="modal-backdrop document-backdrop" onMouseDown={onClose}>
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
-      <article className="document-modal invoice-modal" onMouseDown={(e) => e.stopPropagation()}>
+      <article
+        className={`document-modal invoice-modal${!isActive ? ' invoice-voided' : ''}`}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <button className="document-close" aria-label="Close invoice" onClick={onClose}>
           <Icon name="close" />
         </button>
+
+        {/* ── VOID / CORRECTED watermark-style banner ── */}
+        {!isActive && (
+          <div className="invoice-status-banner" style={{ background: voided ? '#fef2f2' : '#fffbeb', borderColor: voided ? '#fca5a5' : '#fde68a', color: voided ? '#991b1b' : '#92400e' }}>
+            <strong>⊘ {voided ? 'VOIDED' : 'CORRECTED'}</strong>
+            {voided && <span>This invoice has been cancelled and is no longer valid for payment or collection.</span>}
+            {inv.correctedRef && <span>Corrected by: <strong>{inv.correctedRef}</strong></span>}
+          </div>
+        )}
+        {inv.status === 'corrected' && !voided && (
+          <div className="invoice-status-banner" style={{ background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' }}>
+            <strong>⚠ CORRECTED INVOICE</strong>
+            <span>This document supersedes a prior invoice. Ref: <strong>{inv.correctedRef || 'INV-2026-0314'}</strong></span>
+          </div>
+        )}
+
+        {/* ── HEADER: Seller identity (Check 1, 2, 3) ── */}
         <header className="invoice-head">
           <div className="invoice-brand">
             <span><Icon name="flame" size={24} /></span>
             <div>
-              <strong>LPG Pro</strong>
-              <small>Operations Management System</small>
+              {/* Check 3: Seller registered name, address, TIN, VAT status */}
+              <strong>{inv.sellerName}</strong>
+              <small>{inv.sellerAddress}</small>
+              <small style={{ color: '#688299' }}>TIN: {inv.sellerTin} · {inv.sellerVatStatus}</small>
+              <small style={{ color: '#688299' }}>DOE Permit: R12-DOE-LPG-0914</small>
             </div>
           </div>
-          <div>
-            <strong>{inv.invoiceNo}</strong>
-            <span>{inv.date}</span>
+          <div style={{ textAlign: 'right' }}>
+            {/* Check 1: Invoice number and series */}
+            <strong style={{ fontSize: 15 }}>{inv.invoiceNo}</strong>
+            <span style={{ display: 'block', marginTop: 3 }}>Series: 2026-0001 – 2026-2000</span>
+            {/* Check 2: Date and time */}
+            <span style={{ display: 'block', color: '#688299', fontSize: 12, marginTop: 2 }}>
+              {inv.date} · {inv.time}
+            </span>
+            {/* Status label */}
+            <span style={{ display: 'inline-block', marginTop: 5, padding: '2px 8px', background: statusColor, color: '#fff', borderRadius: 4, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em' }}>
+              {statusLabel}
+            </span>
           </div>
         </header>
 
+        {/* ── PARTIES: Customer identity + Cashier (Check 4, 17) ── */}
         <div className="document-columns">
           <section>
-            <h3>Billed To</h3>
+            {/* Check 4: Customer identity */}
+            <h3>Sold To</h3>
             <dl>
               <dt>Customer Name</dt>
-              <dd>{inv.customerName}</dd>
+              <dd><strong>{inv.customerName}</strong></dd>
+              {inv.customerBiz !== '—' && (<><dt>Business Name</dt><dd>{inv.customerBiz}</dd></>)}
               <dt>Address</dt>
               <dd>{inv.address}</dd>
               <dt>Contact</dt>
               <dd>{inv.contact}</dd>
-              <dt>Tax Number</dt>
+              <dt>Customer TIN</dt>
               <dd>{inv.tin}</dd>
             </dl>
           </section>
           <section>
-            <h3>Processed By</h3>
+            {/* Check 17: Staff attribution · Check 18: Delivery linkage */}
+            <h3>Transaction Details</h3>
             <dl>
-              <dt>Staff Code</dt>
-              <dd>{inv.staffCode}</dd>
-              <dt>Staff Name</dt>
-              <dd>{inv.staffName}</dd>
+              <dt>Cashier</dt>
+              <dd>{inv.staffCode} · {inv.staffName}</dd>
               <dt>Date & Time</dt>
-              <dd>{inv.date} · 08:24 AM</dd>
+              <dd>{inv.date} · {inv.time}</dd>
               <dt>Payment Method</dt>
               <dd><Badge>{inv.paymentMethod}</Badge></dd>
+              {inv.deliveryRef !== '—' && (
+                <>
+                  <dt>Delivery Trip Ref</dt>
+                  <dd style={{ color: '#1877c9', fontWeight: 600 }}>{inv.deliveryRef}</dd>
+                  <dt>Assigned Driver</dt>
+                  <dd>{inv.driverName}</dd>
+                </>
+              )}
+              {/* Check 10: VAT classification */}
+              <dt>VAT Classification</dt>
+              <dd>
+                <span style={{ fontSize: 12, padding: '1px 7px', borderRadius: 4, fontWeight: 700, background: isVatable ? '#e0f2fe' : '#f0fdf4', color: isVatable ? '#075985' : '#166534' }}>
+                  {inv.vatClassification === 'vatable' ? 'VATable (12% EVAT)' : inv.vatClassification === 'zero-rated' ? 'Zero-Rated (0%)' : 'VAT-Exempt (LPG Residential)'}
+                </span>
+              </dd>
             </dl>
           </section>
         </div>
 
+        {/* ── LINE ITEMS TABLE (Check 5, 6, 7, 8) ── */}
         <div className="document-table">
           <table>
             <thead>
               <tr>
-                <th>Description</th>
-                <th>Brand</th>
+                <th style={{ width: '35%' }}>Description / SKU</th>
                 <th>Cylinder Serial</th>
-                <th>Net Weight</th>
-                <th>Unit Price</th>
-                <th>Amount</th>
+                <th style={{ textAlign: 'right' }}>Qty / Unit</th>
+                <th style={{ textAlign: 'right' }}>Unit Price</th>
+                <th style={{ textAlign: 'right' }}>Amount</th>
               </tr>
             </thead>
             <tbody>
+              {/* LPG Refill line — Check 5, 6, 7, 8 */}
               <tr>
-                <td>Full LPG Cylinder Refill</td>
-                <td>{inv.brand}</td>
-                <td>{inv.serial}</td>
-                <td>{inv.netWeight}</td>
-                <td>{inv.subtotal}</td>
-                <td>{inv.subtotal}</td>
+                <td>
+                  <strong>LPG Cylinder Refill · {inv.netWeight}</strong>
+                  <br /><small style={{ color: '#688299' }}>{inv.brand} · POL Threaded Valve</small>
+                </td>
+                <td className="cell-mono">{inv.serial}</td>
+                <td style={{ textAlign: 'right' }}>1 cyl</td>
+                <td style={{ textAlign: 'right' }}>₱{inv.cylinderUnitPrice.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                <td style={{ textAlign: 'right' }}>₱{inv.cylinderUnitPrice.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
               </tr>
+
+              {/* Cylinder Shell Deposit — Check 15 */}
+              {depositLine > 0 && (
+                <tr style={{ color: '#1877c9' }}>
+                  <td>
+                    <strong>Cylinder Shell Deposit (Refundable)</strong>
+                    <br /><small>Cash held in trust · Returned on shell surrender</small>
+                  </td>
+                  <td className="cell-mono">{inv.serial}</td>
+                  <td style={{ textAlign: 'right' }}>1 shell</td>
+                  <td style={{ textAlign: 'right' }}>₱{depositLine.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                  <td style={{ textAlign: 'right' }}>₱{depositLine.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                </tr>
+              )}
+
+              {/* Swap / Requal Surcharge */}
+              {inv.swapFee > 0 && (
+                <tr style={{ color: '#b76307' }}>
+                  <td>
+                    <strong>Off-Brand / Requal Surcharge</strong>
+                    <br /><small>Handling & BPS inspection fee</small>
+                  </td>
+                  <td>—</td>
+                  <td style={{ textAlign: 'right' }}>1 svc</td>
+                  <td style={{ textAlign: 'right' }}>₱{inv.swapFee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                  <td style={{ textAlign: 'right' }}>₱{inv.swapFee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                </tr>
+              )}
+
+              {/* Accessories — Check 5, 6, 7, 8 */}
+              {inv.additionalItems.map((it, idx) => (
+                <tr key={`${it.sku}-${idx}`}>
+                  <td>
+                    <strong>{it.name}</strong>
+                    <br /><small style={{ color: '#688299' }}>SKU: {it.sku}</small>
+                  </td>
+                  <td>—</td>
+                  <td style={{ textAlign: 'right' }}>{it.qty} pcs</td>
+                  <td style={{ textAlign: 'right' }}>₱{it.unitPrice.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                  <td style={{ textAlign: 'right' }}>₱{(it.unitPrice * it.qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                </tr>
+              ))}
+
+              {/* Discount — Check 9 */}
+              {discountAmt > 0 && (
+                <tr style={{ color: '#c64a50' }}>
+                  <td colSpan={4}>
+                    <strong>Discount — {inv.discountLabel || 'Promotional / Senior / PWD'}</strong>
+                    <br /><small>Supporting discount slip required for statutory discounts</small>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>−₱{discountAmt.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
+        {/* ── CYLINDER EXCHANGE DETAILS (Check 15, 16) ── */}
         <div className="invoice-summary">
           <div className="return-info">
-            <h3>Empty Cylinder Surrender</h3>
+            <h3>Cylinder Exchange Record</h3>
             <p>
-              <span>Empty Cylinder Returned</span>
-              <strong>{inv.hasReturnedEmpty ? 'Yes (Basyo Received)' : 'No (New Shell Purchase)'}</strong>
+              <span>Transaction Type</span>
+              <strong>{inv.hasReturnedEmpty ? 'Palit-Basyo (Exchange)' : 'New Shell Purchase'}</strong>
             </p>
-            {inv.hasReturnedEmpty && (
+            {/* Check 16: both cylinder IDs */}
+            <p>
+              <span>Outgoing Full Cylinder Serial</span>
+              <strong className="cell-mono">{inv.serial}</strong>
+            </p>
+            {inv.hasReturnedEmpty ? (
               <p>
-                <span>Returned Serial</span>
-                <strong>{inv.returnedSerial}</strong>
+                <span>Incoming Empty Basyo Serial</span>
+                <strong className="cell-mono">{inv.returnedSerial}</strong>
+              </p>
+            ) : (
+              <p>
+                <span>Incoming Empty Basyo</span>
+                <strong style={{ color: '#64748b' }}>None · New cylinder issued</strong>
+              </p>
+            )}
+            {/* Check 15: deposit clearly separate */}
+            {depositLine > 0 && (
+              <p style={{ marginTop: 8, padding: '6px 10px', background: '#eef5ff', borderRadius: 5, border: '1px dashed #93c5fd' }}>
+                <span style={{ color: '#1877c9', fontWeight: 600 }}>Shell Deposit (NOT revenue)</span>
+                <strong style={{ color: '#1877c9' }}>₱{depositLine.toLocaleString('en-PH', { minimumFractionDigits: 2 })} · Refundable</strong>
               </p>
             )}
           </div>
+
+          {/* ── TOTALS & VAT BREAKDOWN (Check 11, 12) ── */}
           <div className="invoice-totals">
             <p>
-              <span>Subtotal</span>
-              <strong>{inv.subtotal}</strong>
+              <span>LPG Subtotal</span>
+              <strong>₱{(inv.cylinderUnitPrice + inv.swapFee).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
             </p>
-            <p>
-              <span>VAT (12%)</span>
-              <strong>Included</strong>
-            </p>
+            {depositLine > 0 && (
+              <p style={{ color: '#1877c9' }}>
+                <span>Shell Deposit (Refundable)</span>
+                <strong>₱{depositLine.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+              </p>
+            )}
+            {accsTotal > 0 && (
+              <p>
+                <span>Accessories / Hardware</span>
+                <strong>₱{accsTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+              </p>
+            )}
+            {discountAmt > 0 && (
+              <p style={{ color: '#c64a50' }}>
+                <span>Discount ({inv.discountLabel})</span>
+                <strong>−₱{discountAmt.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+              </p>
+            )}
+
+            {/* Check 10 & 11: VAT breakdown */}
+            {isVatable ? (
+              <>
+                <p style={{ borderTop: '1px solid #e2e8f0', paddingTop: 8, marginTop: 8 }}>
+                  <span>VATable Sales (ex-VAT)</span>
+                  <strong>₱{netOfVat.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+                </p>
+                <p>
+                  <span>12% Output VAT</span>
+                  <strong>₱{vatAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+                </p>
+                <p>
+                  <span>Zero-Rated / Exempt</span>
+                  <strong>₱0.00</strong>
+                </p>
+              </>
+            ) : (
+              <p style={{ borderTop: '1px solid #e2e8f0', paddingTop: 8, marginTop: 8, color: '#166534', fontSize: 12 }}>
+                <span>VAT-Exempt (LPG Residential)</span>
+                <strong>₱0.00 VAT</strong>
+              </p>
+            )}
+
+            {/* Check 12: VAT-inclusive total */}
             <p className="grand-total">
-              <span>Total Amount</span>
-              <strong>{inv.amount}</strong>
+              <span>Total Amount Due</span>
+              <strong>₱{totalDue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
             </p>
+
+            {/* Check 13: Payment details */}
+            <p style={{ color: '#078a76' }}>
+              <span>Amount Paid ({inv.paymentMethod})</span>
+              <strong>₱{inv.amountPaid.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+            </p>
+            {balance !== 0 && (
+              <p style={{ color: balance > 0 ? '#c64a50' : '#078a76' }}>
+                <span>{balance > 0 ? 'Balance Remaining' : 'Change Given'}</span>
+                <strong>{balance > 0 ? '' : '−'}₱{Math.abs(balance).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+              </p>
+            )}
+
+            {/* Check 14: Credit sale details */}
+            {isCreditSale && (
+              <div style={{ marginTop: 8, padding: '8px 10px', background: '#fef9ec', border: '1px solid #fde68a', borderRadius: 5 }}>
+                <strong style={{ fontSize: 12, color: '#92400e', display: 'block' }}>Credit / Paautang Account</strong>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#92400e' }}>
+                  <span>Amount Charged:</span>
+                  <strong> ₱{totalDue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+                </p>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#92400e' }}>
+                  <span>Outstanding Balance (Kartilya):</span>
+                  <strong> ₱{(inv.creditOutstanding + totalDue).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
+        {/* ── AUDIT TRAIL NOTE (Check 21) ── */}
+        <div style={{ padding: '8px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', fontSize: 11, color: '#64748b', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <span>📋 Audit Trail: <strong>{inv.invoiceNo}</strong> → Sale → {inv.paymentMethod} Collection → Stock Movement → Customer Ledger</span>
+          {inv.deliveryRef !== '—' && <span>🚚 Linked Delivery: <strong>{inv.deliveryRef}</strong></span>}
+        </div>
+
         <footer className="document-footer">
-          <em>This official receipt is system-generated and valid under BIR RR regulations.</em>
           <div>
+            <em>{settings.invoiceFooterNote}</em>
+            <div style={{ fontSize: 10, color: '#64748b', marginTop: 2 }}>
+              BIR MIN: {settings.birMinNumber} • BIR PTU: {settings.birPtuNumber}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {!voided && (
+              <Button variant="secondary" onClick={() => setShowVoidConfirm(true)}>Void Invoice</Button>
+            )}
             <Button variant="secondary" icon="file" onClick={handlePrint}>Print Invoice</Button>
             <Button onClick={onClose}>Close</Button>
           </div>
         </footer>
+
+        {/* Void Confirmation Dialog — Check 20 */}
+        {showVoidConfirm && (
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 12 }}>
+            <div style={{ background: '#fff', borderRadius: 10, padding: 28, maxWidth: 360, width: '90%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+              <div style={{ fontSize: 28, marginBottom: 12 }}>⊘</div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#991b1b', margin: '0 0 8px' }}>Void This Invoice?</h3>
+              <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 20px', lineHeight: 1.5 }}>
+                <strong>{inv.invoiceNo}</strong> will be permanently cancelled. This action is logged to the immutable audit trail and cannot be reversed.
+              </p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <Button variant="secondary" onClick={() => setShowVoidConfirm(false)}>Cancel</Button>
+                <Button onClick={handleVoid}>Confirm Void</Button>
+              </div>
+            </div>
+          </div>
+        )}
       </article>
     </div>
   )
@@ -404,10 +1272,10 @@ function DeliverySlipModal({ data, onClose, onMarkDelivered }: { data?: Delivery
     deliveryId: data?.deliveryId || 'DEL-1018',
     customer: data?.customer || 'ABC Restaurant',
     company: data?.company || 'ABC Food Corp.',
-    address: data?.address || 'Ortigas Ave., Mandaluyong',
+    address: data?.address || 'National Highway, Brgy. Labangal, GenSan',
     contact: data?.contact || '0918 309 1204',
-    serial: data?.serial || 'LPG-004617',
-    brand: data?.brand || 'Petron Gasul (11kg)',
+    serial: data?.serial || 'SG-11-004617',
+    brand: data?.brand || 'SEAGAS (SEAOIL 11kg POL)',
     driver: data?.driver || 'Mark Ramos (ST003)',
     status: data?.status || 'In Transit',
   }
@@ -426,7 +1294,7 @@ function DeliverySlipModal({ data, onClose, onMarkDelivered }: { data?: Delivery
         </button>
         <header className="slip-head">
           <div>
-            <span className="eyebrow">LPG Pro Operations System</span>
+            <span className="eyebrow">SEAGAS Operations Control System · GenSan</span>
             <h2>Delivery Slip & Trip Manifest</h2>
           </div>
           <div>
@@ -499,10 +1367,35 @@ function Dashboard({ setPage }: { setPage: (p: string) => void }) {
   return <div className="page dashboard">
     {invoiceOpen && <InvoiceModal onClose={() => setInvoiceOpen(false)}/>}
     <div className="page-heading"><div><h1>Dashboard</h1><p>Overview of LPG operations today.</p></div><div className="quote"><Icon name="flame" size={23}/><span>“Sa ligtas na LPG, mas magandang bukas.”</span></div></div>
-    <div className="kpi-grid"><KpiCard icon="cylinder" label="Full Cylinders" value="428" change="+12%" tone="teal"/><KpiCard icon="cylinder" label="Empty Cylinders" value="163" change="+5%" tone="blue"/><KpiCard icon="money" label="Today's Sales" value="₱24,850" change="+18%" tone="green"/><KpiCard icon="truck" label="Pending Deliveries" value="12" change="+33%" tone="orange"/></div>
+    <StatStrip
+      stats={[
+        { label: "Today's Gross Sales", value: '₱24,850.00', sub: '+18% vs yesterday', status: 'ok' },
+        { label: 'Full Cylinders Ready', value: '428 Tanks', sub: 'In GenSan yard', status: 'info' },
+        { label: 'Empty Basyo in Yard', value: '163 Tanks', sub: 'Awaiting depot refill' },
+        { label: 'Pending Dispatches', value: '12 Trips', sub: '3 drivers en route', status: 'warning' },
+      ]}
+    />
     <div className="dashboard-grid"><MovementChart/><InventoryStatus/>
       <Card className="transactions-card"><CardTitle icon="file" title="Recent Transactions" action={<Button variant="ghost" onClick={() => setPage('POS (Sales & Exchange)')}>View All <span>→</span></Button>}/><DataTable columns={['Time','Customer','Transaction','Cylinder Serial','Amount','Staff Code']} rows={transactions} onRowClick={() => setInvoiceOpen(true)}/></Card>
       <ClosingChecklist checked={checked} toggle={i => setChecked(c => c.map((v,x) => x === i ? !v : v))}/>
+      <Card style={{ borderLeft: '4px solid #c64a50', background: '#fff9f9' }}>
+        <CardTitle
+          icon="bell"
+          title="AR & Credit Risk Engine"
+          subtitle="2 Accounts Hard-Locked · POS & Dispatch Releases Blocked"
+          action={<Button variant="ghost" onClick={() => setPage('AR & Risk Control')}>Manage AR Risk <span>→</span></Button>}
+        />
+        <div style={{ padding: '0 16px 14px', fontSize: 13, color: '#688299' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span>🔒 ABC Restaurant (38d overdue · ₱12k breach)</span>
+            <strong style={{ color: '#c64a50' }}>Hard-Locked</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>🔒 LM Food House (12/10 cylinders float breach)</span>
+            <strong style={{ color: '#c64a50' }}>Hard-Locked</strong>
+          </div>
+        </div>
+      </Card>
       <Card className="loan-card"><CardTitle icon="coins" title="Loan & Expense Snapshot" action={<Button variant="ghost" onClick={() => setPage('Expenses')}>View Details <span>→</span></Button>}/><div className="snapshot-grid">{[['coins','Loan Balance','₱120,000','As of Oct 16, 2026'],['money','Interest Paid','₱2,350','This month'],['receipt',"Today's Expenses",'₱3,680','For Oct 16, 2026']].map((x,i) => <div className={`snapshot snapshot-${i}`} key={x[1]}><span><Icon name={x[0] as IconName}/></span><div><small>{x[1]}</small><strong>{x[2]}</strong><em>{x[3]}</em></div></div>)}</div><h3>Expense Categories (Today)</h3><div className="expense-tiles">{[['Fuel','₱1,500'],['Salaries','₱1,200'],['Utilities','₱480'],['Others','₱500']].map((x,i) => <div className={`expense-${i}`} key={x[0]}><span>{x[0]}</span><strong>{x[1]}</strong></div>)}</div></Card>
       <AuditActivity/>
     </div>
@@ -561,7 +1454,7 @@ function ModulePage({ page, setPage }: { page: string; setPage: (page: string) =
         <p>{config.subtitle}</p>
       </div>
       <div className="heading-actions">
-        {page === 'Cylinder Inventory' && <Button variant="secondary" icon="swap" onClick={() => setPage('Cylinders & Tanks')}>Movement Log</Button>}
+        {page === 'Cylinder Inventory' && <Button variant="secondary" icon="swap" onClick={() => setPage('Cylinder Fleet')}>Movement Log</Button>}
         <Button icon={page === 'Audit Logs' ? 'download' : 'plus'} onClick={() => page === 'Audit Logs' ? handleExport() : setModal(true)}>
           {config.action}
         </Button>
@@ -676,30 +1569,41 @@ function FilterTabs({ items, active, onChange }: { items: string[]; active: stri
   return <div className="filter-tabs">{items.map(item => <button key={item} className={active === item ? 'active' : ''} onClick={() => onChange(item)}>{item}</button>)}</div>
 }
 
-function CustomersSuki() {
+function CustomersSuki({ setPage }: { setPage?: (page: string) => void }) {
   const initialCustomers = [
-    ['Maria Santos', '—', '0917 234 8891', 'Mabini St., Makati', 'TIN-882-194', 'Petron Gasul (POL)', 'Suki Regular', '₱0 / ₱2,500', '1 Tank (₱1,800)', 'View Kartilya'],
-    ['ABC Restaurant', 'ABC Food Corp.', '0918 309 1204', 'Ortigas Ave., Pasig', 'TIN-119-822', 'Solane (Compact 20mm)', 'Suki Commercial', '₱62,000 / ₱80,000', '8 Tanks (₱16,000)', 'View Kartilya'],
-    ['Aling Nena', "Nena's Carinderia", '0928 441 2098', 'P. Burgos, Pasig', 'TIN-342-818', 'Phoenix Super LPG (SNP)', 'Suki Regular', '₱4,800 / ₱5,000', '2 Tanks (₱3,500)', 'View Kartilya'],
-    ['LM Food House', 'LM Ventures Inc.', '0998 232 6180', 'Shaw Blvd., Mandaluyong', 'TIN-441-512', 'Phoenix Super LPG (SNP)', 'Suki Commercial', '₱42,000 / ₱60,000', '6 Tanks (₱10,500)', 'View Kartilya'],
-    ['Nanay Gloria Bakery', "Gloria's Panaderya", '0917 889 1234', 'Boni Ave., Mandaluyong', 'TIN-552-199', 'Petron Gasul (50kg POL)', 'Suki Commercial', '₱18,500 / ₱30,000', '4 Tanks (₱8,000)', 'View Kartilya'],
+    ['Maria Santos', '—', '0917 234 8891', 'J. Catolico St., Brgy. Lagao, GenSan', 'TIN-882-194', 'SEAGAS 11kg (POL Threaded)', 'Full Deposit', '₱0 / ₱2,500', '1 Tank (₱1,800)', 'View Kartilya'],
+    ['ABC Restaurant', 'ABC Food Corp.', '0918 309 1204', 'National Highway, Brgy. Labangal, GenSan', 'TIN-119-822', 'SEAGAS 11kg (Compact 20mm)', 'Mutual Agreement', '₱62,000 / ₱80,000', '8 Tanks (₱16,000)', 'View Kartilya'],
+    ['Aling Nena', "Nena's Carinderia", '0928 441 2098', 'P. Acharon Blvd., Brgy. Calumpang, GenSan', 'TIN-342-818', 'SEAGAS 11kg (Snap-On SNP)', 'Partial Deposit', '₱4,800 / ₱5,000', '2 Tanks (₱3,500)', 'View Kartilya'],
+    ['LM Food House', 'LM Ventures Inc.', '0998 232 6180', 'Makar Junction, Brgy. Labangal, GenSan', 'TIN-441-512', 'SEAGAS 11kg (Snap-On SNP)', 'Mutual Agreement', '₱42,000 / ₱60,000', '6 Tanks (₱10,500)', 'View Kartilya'],
+    ['Nanay Gloria Bakery', "Gloria's Panaderya", '0917 889 1234', 'Aparente St., Brgy. City Heights, GenSan', 'TIN-552-199', 'SEAGAS 50kg Industrial (POL)', 'Partial Deposit', '₱18,500 / ₱30,000', '4 Tanks (₱8,000)', 'View Kartilya'],
   ]
 
   const initialCreditRows = [
-    ['ABC Restaurant', 'Suki Commercial', '0918 309 1204 · Ortigas, Pasig', '₱80,000', '₱62,000', 'Oct 08, 2026', 'Oct 18, 2026', 'View Kartilya'],
-    ["Nena's Carinderia", 'Suki Regular', '0928 441 2098 · P. Burgos, Pasig', '₱5,000', '₱4,800', 'Sep 12, 2026', 'Oct 16, 2026', 'View Kartilya'],
-    ['LM Food House', 'Suki Commercial', '0998 232 6180 · Shaw Blvd.', '₱60,000', '₱42,000', 'Oct 01, 2026', 'Oct 20, 2026', 'View Kartilya'],
-    ["Gloria's Panaderya", 'Suki Commercial', '0917 889 1234 · Boni Ave.', '₱30,000', '₱18,500', 'Oct 10, 2026', 'Oct 25, 2026', 'View Kartilya'],
+    ['ABC Restaurant', 'Suki Commercial', '0918 309 1204 · Brgy. Labangal, GenSan', '₱80,000', '₱62,000', 'Oct 08, 2026', 'Oct 18, 2026', 'View Kartilya'],
+    ["Nena's Carinderia", 'Suki Regular', '0928 441 2098 · Brgy. Calumpang, GenSan', '₱5,000', '₱4,800', 'Sep 12, 2026', 'Oct 16, 2026', 'View Kartilya'],
+    ['LM Food House', 'Suki Commercial', '0998 232 6180 · Makar Junction, GenSan', '₱60,000', '₱42,000', 'Oct 01, 2026', 'Oct 20, 2026', 'View Kartilya'],
+    ["Gloria's Panaderya", 'Suki Commercial', '0917 889 1234 · Brgy. City Heights, GenSan', '₱30,000', '₱18,500', 'Oct 10, 2026', 'Oct 25, 2026', 'View Kartilya'],
+  ]
+
+  const initialDeposits = [
+    ['DEP-2026-089', 'Maria Santos', 'SG-11-004521', '11kg POL Threaded', '₱1,800.00', 'Oct 02, 2026', '14 Days', 'Active Deposit'],
+    ['DEP-2026-044', 'Juan Dela Cruz', 'SG-11-003998', '11kg Compact (CMP)', '₱2,000.00', 'Aug 15, 2026', '62 Days', 'Overdue Review'],
+    ['DEP-2026-012', 'Kusina Ni Nanay', 'SG-50-001004', '50kg POL Industrial', '₱0.00 (Owner Approved)', 'Jul 10, 2026', '98 Days', 'Zero-Deposit Suki'],
+    ['DEP-2026-095', 'ABC Restaurant', 'SG-11-004617', '11kg Snap-On (SNP)', '₱1,750.00', 'Oct 14, 2026', '2 Days', 'Active Deposit'],
+    ['DEP-2026-077', 'Tatay Boying Bakery', 'SG-50-001923', '50kg POL Industrial', '₱4,500.00', 'Sep 18, 2026', '28 Days', 'Active Deposit'],
   ]
 
   const [tab, setTab] = useState('All Customers')
   const [customerList, setCustomerList] = useState(initialCustomers)
   const [creditList, setCreditList] = useState(initialCreditRows)
+  const [deposits, setDeposits] = useState(initialDeposits)
   const [search, setSearch] = useState('')
   const [drawer, setDrawer] = useState<string[] | null>(null)
   const [kartilya, setKartilya] = useState(false)
   const [addModal, setAddModal] = useState(false)
   const [paymentModal, setPaymentModal] = useState(false)
+  const [issueDepositOpen, setIssueDepositOpen] = useState(false)
+  const [refundModalItem, setRefundModalItem] = useState<string[] | null>(null)
   const [toast, setToast] = useState('')
 
   // Add Customer Form Fields
@@ -708,14 +1612,53 @@ function CustomersSuki() {
   const [cPhone, setCPhone] = useState('')
   const [cAddress, setCAddress] = useState('')
   const [cTin, setCTin] = useState('')
-  const [cBrand, setCBrand] = useState('Petron Gasul (POL)')
+  const [cBrand, setCBrand] = useState('SEAGAS Standard 11kg (POL)')
   const [cTier, setCTier] = useState('Suki Regular')
   const [cCreditLimit, setCCreditLimit] = useState('5000')
+
+  // Deposit Form Fields
+  const [depCustomer, setDepCustomer] = useState('Maria Santos')
+  const [depSerial, setDepSerial] = useState('SG-11-008122')
+  const [depSize, setDepSize] = useState('11.0 kg POL')
+  const [depAmount, setDepAmount] = useState('1800')
 
   // Payment Form Fields
   const [payAmount, setPayAmount] = useState('5000')
   const [payOrNo, setPayOrNo] = useState('OR-0892')
   const [payMethod, setPayMethod] = useState('Cash')
+
+  function handleIssueDeposit(e: FormEvent) {
+    e.preventDefault()
+    const slipId = `DEP-2026-${Math.floor(100 + Math.random() * 900)}`
+    const newDeposit = [
+      slipId,
+      depCustomer,
+      depSerial,
+      depSize,
+      `₱${parseFloat(depAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+      'Today (Oct 16)',
+      '0 Days',
+      'Active Deposit'
+    ]
+    setDeposits([newDeposit, ...deposits])
+    setIssueDepositOpen(false)
+    showToast(`Official Deposit Slip ${slipId} issued for ${depCustomer}!`)
+  }
+
+  function handleApproveRefund() {
+    if (!refundModalItem) return
+    const updated = deposits.map(dep => {
+      if (dep[0] === refundModalItem[0]) {
+        return [dep[0], dep[1], dep[2], dep[3], dep[4], dep[5], 'Returned', 'Refunded & Restocked']
+      }
+      return dep
+    })
+    setDeposits(updated)
+    const slip = refundModalItem[0]
+    const amount = refundModalItem[4]
+    setRefundModalItem(null)
+    showToast(`Deposit ${slip} refunded (${amount}) to customer! Cash disbursed from drawer.`)
+  }
 
   // Passbook ledger state
   const [kartilyaLedger, setKartilyaLedger] = useState([
@@ -828,19 +1771,19 @@ function CustomersSuki() {
                 </label>
                 <label>
                   <span>Delivery Address / Barangay<b>*</b></span>
-                  <input required value={cAddress} onChange={e => setCAddress(e.target.value)} placeholder="e.g. 45 Rizal St., Brgy. Poblacion, Makati" />
+                  <input required value={cAddress} onChange={e => setCAddress(e.target.value)} placeholder="e.g. J. Catolico St., Brgy. Lagao, GenSan" />
                 </label>
                 <label>
                   <span>Tax ID (TIN for Invoicing)</span>
                   <input value={cTin} onChange={e => setCTin(e.target.value)} placeholder="TIN-000-000" />
                 </label>
                 <label>
-                  <span>Preferred Brand & Valve System</span>
+                  <span>Preferred Valve System (SEAGAS Fleet)</span>
                   <select value={cBrand} onChange={e => setCBrand(e.target.value)} style={{ height: 38, border: '1px solid #dce5ed', borderRadius: 7, padding: '0 10px', fontSize: 11 }}>
-                    <option>Petron Gasul (POL Threaded)</option>
-                    <option>Solane (Compact 20mm Snap-On)</option>
-                    <option>Phoenix Super LPG (SNP Auto-Lock)</option>
-                    <option>Petron Gasul 50kg Industrial (SRV)</option>
+                    <option>SEAGAS Standard 11kg (POL Threaded)</option>
+                    <option>SEAGAS Compact 11kg (20mm Snap-On)</option>
+                    <option>SEAGAS Industrial 50kg (SRV / POL)</option>
+                    <option>SEAGAS Camping 2.7kg (Compact)</option>
                   </select>
                 </label>
                 <label>
@@ -925,7 +1868,7 @@ function CustomersSuki() {
             <div className="modal-head">
               <div>
                 <h2>Digital Kartilya (Customer Passbook)</h2>
-                <p>ABC Restaurant · Account #SUKI-0082 · Pasig Branch</p>
+                <p>ABC Restaurant · Account #SUKI-0082 · Brgy. Labangal, GenSan</p>
               </div>
               <button onClick={() => setKartilya(false)}><Icon name="close"/></button>
             </div>
@@ -1019,36 +1962,167 @@ function CustomersSuki() {
         </div>
       )}
 
+      {/* Issue Deposit Slip Modal */}
+      {issueDepositOpen && (
+        <div className="modal-backdrop" onMouseDown={() => setIssueDepositOpen(false)}>
+          <div className="modal" onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <h2>Issue Customer Cylinder Deposit Slip</h2>
+                <p>Record cash deposit liability held in trust for loaned SEAGAS cylinder shell.</p>
+              </div>
+              <button onClick={() => setIssueDepositOpen(false)}><Icon name="close"/></button>
+            </div>
+            <form onSubmit={handleIssueDeposit}>
+              <div className="form-grid">
+                <label>
+                  <span>Customer Name<b>*</b></span>
+                  <input required value={depCustomer} onChange={e => setDepCustomer(e.target.value)} placeholder="e.g. Maria Santos" />
+                </label>
+                <label>
+                  <span>Cylinder Serial<b>*</b></span>
+                  <input required value={depSerial} onChange={e => setDepSerial(e.target.value)} placeholder="e.g. SG-11-008122" />
+                </label>
+                <label>
+                  <span>Cylinder Size & Valve</span>
+                  <input required value={depSize} onChange={e => setDepSize(e.target.value)} placeholder="e.g. 11.0 kg POL" />
+                </label>
+                <label>
+                  <span>Deposit Cash Amount (₱)<b>*</b></span>
+                  <input required type="number" value={depAmount} onChange={e => setDepAmount(e.target.value)} placeholder="1800" />
+                </label>
+              </div>
+              <div className="detail-note" style={{ marginTop: 12 }}>
+                <span>ℹ</span> Deposit amount will be held in the customer deposit trust ledger and is 100% refundable upon surrender of this official SEAGAS shell.
+              </div>
+              <div className="modal-actions">
+                <Button variant="secondary" onClick={() => setIssueDepositOpen(false)}>Cancel</Button>
+                <Button type="submit">Issue Official Deposit Slip</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Refund Deposit Modal */}
+      {refundModalItem && (
+        <div className="modal-backdrop" onMouseDown={() => setRefundModalItem(null)}>
+          <div className="modal payment-modal" onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <h2>Process Shell Return & Cash Refund</h2>
+                <p>Surrender cylinder shell and return customer cash deposit.</p>
+              </div>
+              <button onClick={() => setRefundModalItem(null)}><Icon name="close"/></button>
+            </div>
+            <div className="detail-list">
+              <div><span>Deposit Slip ID:</span><strong>{refundModalItem[0]}</strong></div>
+              <div><span>Customer:</span><strong>{refundModalItem[1]}</strong></div>
+              <div><span>Cylinder Serial:</span><strong>{refundModalItem[2]}</strong></div>
+              <div><span>Shell Type:</span><strong>{refundModalItem[3]}</strong></div>
+              <div><span>Refund Cash Amount:</span><strong style={{ color: '#078a76', fontSize: 16 }}>{refundModalItem[4]}</strong></div>
+              <div><span>Days Out:</span><strong>{refundModalItem[6]}</strong></div>
+
+              <div className="detail-note">
+                <span>✓</span> Shell inspected: Footring solid, valve intact. Surrender confirmed. ₱{refundModalItem[4]} will be disbursed from cash drawer.
+              </div>
+
+              <div className="modal-actions">
+                <Button variant="secondary" onClick={() => setRefundModalItem(null)}>Cancel</Button>
+                <Button onClick={handleApproveRefund}>Approve & Refund Cash</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <MasterHeader
         title="Customers & Suki Management"
-        subtitle="Manage customer profiles, suki relationships, credit standing (paautang), and digital kartilya."
-        actions={<Button icon="plus" onClick={() => setAddModal(true)}>Add Customer</Button>}
+        subtitle="Manage customer profiles, suki relationships, credit standing (paautang), and cylinder deposit liabilities."
+        actions={
+          <div style={{ display: 'flex', gap: 8 }}>
+            {tab === 'Cylinder Deposits & Escrow' ? (
+              <Button icon="plus" onClick={() => setIssueDepositOpen(true)}>Issue Deposit Slip</Button>
+            ) : (
+              <Button icon="plus" onClick={() => setAddModal(true)}>Add Customer</Button>
+            )}
+          </div>
+        }
       />
       <FilterTabs
-        items={['All Customers', 'Suki Accounts', 'Commercial / Business', 'Credit & Paautang (Kartilya)']}
+        items={['All Customers', 'Suki Accounts', 'Commercial / Business', 'Credit & Paautang (Kartilya)', 'Cylinder Deposits & Escrow']}
         active={tab}
         onChange={setTab}
       />
 
-      {tab === 'Credit & Paautang (Kartilya)' ? (
+      {tab === 'Cylinder Deposits & Escrow' ? (
         <>
-          <div className="report-kpis credit-kpis">
-            {[
-              ['Total Outstanding Paautang', '₱134,000', '28 accounts'],
-              ['Due for Collection', '₱68,500', 'Oct 15–18'],
-              ['Overdue > 30 Days', '₱18,200', 'Red alert'],
-              ['Collected This Week', '₱42,300', '+18% vs last week'],
-            ].map((x, i) => (
-              <Card key={x[0]} className={`credit-${i}`}>
-                <span>{x[0]}</span>
-                <strong>{x[1]}</strong>
-                <small>{x[2]}</small>
-              </Card>
-            ))}
-          </div>
+          <StatStrip
+            stats={[
+              { label: 'Total Deposit Liability Held', value: '₱522,000.00', sub: 'Refundable cash trust fund' },
+              { label: 'Active Deposit Slips', value: '290 Slips', sub: 'Customers holding shells', status: 'ok' },
+              { label: 'Overdue Review (>60 Days)', value: '18 Cylinders', sub: 'Risk of unreturned basyo', status: 'danger' },
+              { label: 'Zero-Deposit Suki Accounts', value: '8 Accounts', sub: 'Owner authorized trust credit', status: 'warning' },
+            ]}
+          />
+
+          <Card className="records-card master-table">
+            <div className="toolbar">
+              <SearchField value={search} onChange={setSearch} placeholder="Search deposit slips, customers, or serials..." />
+              <Button icon="plus" onClick={() => setIssueDepositOpen(true)}>
+                Issue New Deposit Slip
+              </Button>
+              <Button variant="secondary" icon="download" onClick={() => showToast('Customer deposits exported: Cylinder_Deposits_Master.xlsx')}>
+                Export Deposit List
+              </Button>
+            </div>
+            <DataTable
+              columns={[
+                'Deposit Slip ID',
+                'Customer Name',
+                'Cylinder Serial',
+                'Size & Valve',
+                'Deposit Amount',
+                'Date Issued',
+                'Outstanding',
+                'Status & Action',
+              ]}
+              rows={deposits.filter(r => r.join(' ').toLowerCase().includes(search.toLowerCase())).map(row => [
+                row[0],
+                row[1],
+                row[2],
+                row[3],
+                row[4],
+                row[5],
+                row[6],
+                row[7] === 'Active Deposit' ? 'Active (Click to Refund)' : row[7]
+              ])}
+              onRowClick={(row) => {
+                if (row[7].includes('Active')) {
+                  setRefundModalItem(row)
+                }
+              }}
+            />
+          </Card>
+        </>
+      ) : tab === 'Credit & Paautang (Kartilya)' ? (
+        <>
+          <StatStrip
+            stats={[
+              { label: 'Total Outstanding Paautang', value: '₱134,000.00', sub: '28 commercial accounts' },
+              { label: 'Due for Collection', value: '₱68,500.00', sub: 'Oct 15–18 cycle', status: 'info' },
+              { label: 'Overdue > 30 Days', value: '₱18,200.00', sub: 'Hard lock alert', status: 'danger' },
+              { label: 'Collected This Week', value: '₱42,300.00', sub: '+18% vs last week', status: 'ok' },
+            ]}
+          />
           <Card className="records-card master-table">
             <div className="toolbar">
               <SearchField value={search} onChange={setSearch} placeholder="Search customer, business, or account..." />
+              {setPage && (
+                <Button variant="secondary" icon="bell" onClick={() => setPage('AR & Risk Control')}>
+                  AR & Risk Control 🔒
+                </Button>
+              )}
               <Button variant="secondary" icon="coins" onClick={() => setPaymentModal(true)}>Record Payment</Button>
             </div>
             <DataTable
@@ -1067,7 +2141,7 @@ function CustomersSuki() {
             </Button>
           </div>
           <DataTable
-            columns={['Customer Name', 'Company Name', 'Contact #', 'Address / Barangay', 'TIN', 'Preferred Brand & Valve', 'Suki Status', 'Credit / Limit', 'Active Deposits', 'Actions']}
+            columns={['Customer Name', 'Company Name', 'Contact #', 'Address / Barangay', 'TIN', 'Preferred Brand & Valve', 'Lending Tier', 'Credit / Limit', 'Active Deposits', 'Actions']}
             rows={filteredCustomers}
             onRowClick={setDrawer}
           />
@@ -1087,40 +2161,29 @@ function CustomersSuki() {
 
 function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
   const initialFleet = [
-    ['PG-11-004521', 'Petron Gasul', '11.0 kg', 'POL Threaded', '13.4 kg', 'With Customer', 'Maria Santos', 'Mar 2028 · Valid', 'Inspect / Transfer'],
-    ['SL-11-003998', 'Solane', '11.0 kg', 'Compact (Snap-On)', '12.8 kg', 'Empty Basyo (Yard)', 'Main Warehouse Yard', 'Dec 2027 · Valid', 'Inspect / Transfer'],
-    ['PH-11-004617', 'Phoenix Super LPG', '11.0 kg', 'Snap-On (SNP)', '13.1 kg', 'On Truck', 'Truck 03 · Mark Ramos', 'Jun 2029 · Valid', 'Inspect / Transfer'],
-    ['PG-50-001004', 'Petron Gasul', '50.0 kg', 'POL Heavy', '48.5 kg', 'Full (Warehouse)', 'Main Warehouse', 'Oct 2026 · Due Soon', 'Inspect / Transfer'],
-    ['SL-11-002109', 'Solane', '11.0 kg', 'Compact (Snap-On)', '13.0 kg', 'Quarantine Bay', 'Damaged Footring / Leaking', 'Expired · Due Requal', 'Inspect / Transfer'],
-    ['PG-11-008122', 'Petron Gasul', '11.0 kg', 'POL Threaded', '13.5 kg', 'Full (Warehouse)', 'Main Warehouse', 'Aug 2029 · Valid', 'Inspect / Transfer'],
-    ['PX-11-005120', 'Prycegas', '11.0 kg', 'POL Threaded', '13.2 kg', 'Cross-Brand Swap Cage', 'Held for RA 11592 Center', 'Nov 2027 · Valid', 'Inspect / Transfer'],
-    ['SL-50-001923', 'Solane', '50.0 kg', 'POL Heavy', '49.2 kg', 'With Customer', 'Kusina Ni Nanay (Commercial)', 'Jan 2028 · Valid', 'Inspect / Transfer'],
-    ['PG-11-007731', 'Petron Gasul', '11.0 kg', 'POL Threaded', '13.3 kg', 'Quarantine Bay', 'BPS Expired (2019 Stamp)', 'Expired · Illegal to Refill', 'Inspect / Transfer'],
-    ['PH-11-006240', 'Phoenix Super LPG', '11.0 kg', 'Snap-On (SNP)', '13.0 kg', 'Empty Basyo (Yard)', 'Main Yard Staging', 'May 2029 · Valid', 'Inspect / Transfer'],
-    ['PG-02-000881', 'Petron Gasul', '2.7 kg', 'Camping Valve', '4.2 kg', 'Full (Warehouse)', 'Main Warehouse', 'Jul 2028 · Valid', 'Inspect / Transfer'],
+    ['SG-11-004521', 'SEAGAS (SEAOIL)', '11.0 kg', 'POL Threaded', '13.4 kg', 'Circulating Float', 'Lagao Household Route', 'Mar 2028 · Valid', 'Inspect / Transfer'],
+    ['SG-11-003998', 'SEAGAS (SEAOIL)', '11.0 kg', 'Compact (Snap-On)', '12.8 kg', 'Empty Basyo (Yard)', 'Main Warehouse Yard', 'Dec 2027 · Valid', 'Inspect / Transfer'],
+    ['SG-11-004617', 'SEAGAS (SEAOIL)', '11.0 kg', 'Snap-On (SNP)', '13.1 kg', 'On Truck', 'Truck 03 · Mark Ramos', 'Jun 2029 · Valid', 'Inspect / Transfer'],
+    ['SG-50-001004', 'SEAGAS (SEAOIL)', '50.0 kg', 'POL Heavy', '48.5 kg', 'Full (Warehouse)', 'Main Warehouse Staging', 'Oct 2026 · Due Soon', 'Inspect / Transfer'],
+    ['SG-11-002109', 'SEAGAS (SEAOIL)', '11.0 kg', 'Compact (Snap-On)', '13.0 kg', 'Quarantine Bay', 'Quarantine Bay · Bay 02', 'Expired · Due Requal', 'Inspect / Transfer'],
+    ['SG-11-008122', 'SEAGAS (SEAOIL)', '11.0 kg', 'POL Threaded', '13.5 kg', 'Full (Warehouse)', 'Main Warehouse Staging', 'Aug 2029 · Valid', 'Inspect / Transfer'],
+    ['SG-50-001923', 'SEAGAS (SEAOIL)', '50.0 kg', 'POL Heavy', '49.2 kg', 'Commercial Float', 'Kusina Ni Nanay (Commercial Float)', 'Jan 2028 · Valid', 'Inspect / Transfer'],
+    ['SG-11-007731', 'SEAGAS (SEAOIL)', '11.0 kg', 'POL Threaded', '13.3 kg', 'Quarantine Bay', 'Quarantine Bay · Bay 01', 'Expired · Illegal to Refill', 'Inspect / Transfer'],
+    ['SG-11-006240', 'SEAGAS (SEAOIL)', '11.0 kg', 'Snap-On (SNP)', '13.0 kg', 'Empty Basyo (Yard)', 'Main Yard Staging', 'May 2029 · Valid', 'Inspect / Transfer'],
+    ['SG-02-000881', 'SEAGAS (SEAOIL)', '2.7 kg', 'Camping Valve', '4.2 kg', 'Full (Warehouse)', 'Main Warehouse Staging', 'Jul 2028 · Valid', 'Inspect / Transfer'],
   ]
 
   const initialMovements = [
-    ['08:24 AM', 'PG-11-004521', 'Petron Gasul', 'POS Walk-In Sale', 'Maria Santos', 'ST001', 'Main Warehouse', 'With Customer', 'Completed'],
-    ['09:15 AM', 'SL-11-003998', 'Solane', 'Palit-Basyo Return', 'Juan Dela Cruz', 'ST002', 'With Customer', 'Empty Basyo (Yard)', 'Completed'],
-    ['10:02 AM', 'PH-11-004617', 'Phoenix Super LPG', 'Delivery Dispatch', 'ABC Restaurant', 'ST003', 'Main Warehouse', 'Truck 03 (En Route)', 'In Transit'],
-    ['11:37 AM', 'SL-11-002109', 'Solane', 'Quarantine Quarantine', 'Store Inspector', 'ST001', 'Yard Staging', 'Quarantine Bay', 'Quarantined'],
-    ['01:18 PM', 'PG-50-001004', 'Petron Gasul', 'Supplier Refill Intake', 'Petron Plant', 'ST004', 'Supplier Truck', 'Full (Warehouse)', 'Completed'],
-    ['03:40 PM', 'PX-11-005120', 'Prycegas', 'Cross-Brand Swap In', 'Walk-in Customer', 'ST002', 'Counter Exchange', 'Cross-Brand Cage', 'Held (RA 11592)'],
-  ]
-
-  const initialDeposits = [
-    ['DEP-2026-089', 'Maria Santos', 'PG-11-004521', '11kg POL Threaded', '₱1,800.00', 'Oct 02, 2026', '14 Days', 'Active Deposit'],
-    ['DEP-2026-044', 'Juan Dela Cruz', 'SL-11-003810', '11kg Compact (CMP)', '₱2,000.00', 'Aug 15, 2026', '62 Days', 'Overdue Review'],
-    ['DEP-2026-012', 'Kusina Ni Nanay', 'PG-50-001004', '50kg POL Industrial', '₱0.00 (Owner Approved)', 'Jul 10, 2026', '98 Days', 'Zero-Deposit Suki'],
-    ['DEP-2026-095', 'ABC Restaurant', 'PH-11-004617', '11kg Snap-On (SNP)', '₱1,750.00', 'Oct 14, 2026', '2 Days', 'Active Deposit'],
-    ['DEP-2026-077', 'Tatay Boying Bakery', 'PG-50-001099', '50kg POL Industrial', '₱4,500.00', 'Sep 18, 2026', '28 Days', 'Active Deposit'],
+    ['08:24 AM', 'SG-11-004521', 'SEAGAS (SEAOIL)', 'POS Palit-Basyo Dispatch', 'Yard Staff Paolo', 'ST001', 'Main Warehouse', 'Circulating Float', 'Completed'],
+    ['09:15 AM', 'SG-11-003998', 'SEAGAS (SEAOIL)', 'Palit-Basyo Return Intake', 'Yard Staff ST002', 'ST002', 'Circulating Float', 'Empty Basyo (Yard)', 'Completed'],
+    ['10:02 AM', 'SG-11-004617', 'SEAGAS (SEAOIL)', 'Delivery Dispatch', 'Driver Mark Ramos', 'ST003', 'Main Warehouse', 'Truck 03 (En Route)', 'In Transit'],
+    ['11:37 AM', 'SG-11-002109', 'SEAGAS (SEAOIL)', 'Quarantine Tag', 'Store Inspector ST001', 'ST001', 'Yard Staging', 'Quarantine Bay', 'Quarantined'],
+    ['01:18 PM', 'SG-50-001004', 'SEAGAS (SEAOIL)', 'Supplier Refill Intake', 'Depot Lorry NDX-4821', 'ST004', 'Supplier Truck', 'Full (Warehouse)', 'Completed'],
   ]
 
   const [tab, setTab] = useState('Master Fleet Register')
   const [fleet, setFleet] = useState(initialFleet)
   const [movements, setMovements] = useState(initialMovements)
-  const [deposits, setDeposits] = useState(initialDeposits)
   const [search, setSearch] = useState('')
   const [filterSize, setFilterSize] = useState('All')
   const [filterValve, setFilterValve] = useState('All')
@@ -1131,8 +2194,6 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
   // Modals state
   const [registerOpen, setRegisterOpen] = useState(false)
   const [inspectorCylinder, setInspectorCylinder] = useState<string[] | null>(null)
-  const [issueDepositOpen, setIssueDepositOpen] = useState(false)
-  const [refundModalItem, setRefundModalItem] = useState<string[] | null>(null)
   const [dispatchRequalOpen, setDispatchRequalOpen] = useState(false)
   const [manualTransferOpen, setManualTransferOpen] = useState(false)
 
@@ -1141,22 +2202,16 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
   const [editCustodian, setEditCustodian] = useState('Main Warehouse')
 
   // Register cylinder form fields
-  const [regSerial, setRegSerial] = useState('PG-11-009845')
-  const [regBrand, setRegBrand] = useState('Petron Gasul')
+  const [regSerial, setRegSerial] = useState('SG-11-009845')
+  const [regBrand, setRegBrand] = useState('SEAGAS (SEAOIL)')
   const [regSize, setRegSize] = useState('11.0 kg')
   const [regValve, setRegValve] = useState('POL Threaded')
   const [regTare, setRegTare] = useState('13.3 kg')
   const [regStatus, setRegStatus] = useState('Full (Warehouse)')
   const [regRequal, setRegRequal] = useState('Oct 2031 · Valid')
 
-  // Issue deposit form fields
-  const [depCustomer, setDepCustomer] = useState('Aling Nena Carinderia')
-  const [depSerial, setDepSerial] = useState('PG-11-008122')
-  const [depSize, setDepSize] = useState('11.0 kg POL')
-  const [depAmount, setDepAmount] = useState('1800')
-
   // Manual transfer fields
-  const [transferSerial, setTransferSerial] = useState('SL-11-003998')
+  const [transferSerial, setTransferSerial] = useState('SG-11-003998')
   const [transferTo, setTransferTo] = useState('Quarantine Bay')
   const [transferReason, setTransferReason] = useState('Dented footring noticed during yard inspection')
 
@@ -1247,49 +2302,7 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
     setFleet([newTank, ...fleet])
     setRegisterOpen(false)
     showToast(`Cylinder ${regSerial} registered into Master Fleet!`)
-    setRegSerial(`PG-11-00${Math.floor(1000 + Math.random() * 9000)}`)
-  }
-
-  function handleIssueDeposit(e: FormEvent) {
-    e.preventDefault()
-    const slipId = `DEP-2026-${Math.floor(100 + Math.random() * 900)}`
-    const newDeposit = [
-      slipId,
-      depCustomer,
-      depSerial,
-      depSize,
-      `₱${parseFloat(depAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
-      'Today (Oct 16)',
-      '0 Days',
-      'Active Deposit'
-    ]
-    setDeposits([newDeposit, ...deposits])
-    setIssueDepositOpen(false)
-    showToast(`Official Deposit Slip ${slipId} issued for ${depCustomer}!`)
-  }
-
-  function handleApproveRefund() {
-    if (!refundModalItem) return
-    const updated = deposits.map(dep => {
-      if (dep[0] === refundModalItem[0]) {
-        return [dep[0], dep[1], dep[2], dep[3], dep[4], dep[5], 'Returned', 'Refunded & Restocked']
-      }
-      return dep
-    })
-    setDeposits(updated)
-
-    // Move associated cylinder back to Empty Basyo in Yard
-    setFleet(prev => prev.map(tank => {
-      if (tank[0] === refundModalItem[2]) {
-        return [tank[0], tank[1], tank[2], tank[3], tank[4], 'Empty Basyo (Yard)', 'Main Yard Staging', tank[7], tank[8]]
-      }
-      return tank
-    }))
-
-    const slip = refundModalItem[0]
-    const amount = refundModalItem[4]
-    setRefundModalItem(null)
-    showToast(`Deposit ${slip} refunded (${amount}) and empty cylinder restocked in yard!`)
+    setRegSerial(`SG-11-00${Math.floor(1000 + Math.random() * 9000)}`)
   }
 
   function handleManualTransfer(e: FormEvent) {
@@ -1303,7 +2316,7 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
     const newMovement = [
       'Just Now',
       transferSerial,
-      'Petron Gasul',
+      'SEAGAS (SEAOIL)',
       'Manual Yard Transfer',
       'Operations Lead',
       'ST001',
@@ -1355,15 +2368,12 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
               <div className="form-grid">
                 <label>
                   <span>Serial Number (Collar Stamp)<b>*</b></span>
-                  <input required value={regSerial} onChange={e => setRegSerial(e.target.value)} placeholder="e.g. PG-11-008912" />
+                  <input required value={regSerial} onChange={e => setRegSerial(e.target.value)} placeholder="e.g. SG-11-008912" />
                 </label>
                 <label>
-                  <span>Brand Name<b>*</b></span>
+                  <span>Official Fleet Brand<b>*</b></span>
                   <select value={regBrand} onChange={e => setRegBrand(e.target.value)} style={{ height: 38, border: '1px solid #dce5ed', borderRadius: 7, padding: '0 10px', fontSize: 11 }}>
-                    <option>Petron Gasul</option>
-                    <option>Solane</option>
-                    <option>Phoenix Super LPG</option>
-                    <option>Prycegas</option>
+                    <option>SEAGAS (SEAOIL)</option>
                   </select>
                 </label>
                 <label>
@@ -1379,9 +2389,9 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
                   <span>Valve Fitting System</span>
                   <select value={regValve} onChange={e => setRegValve(e.target.value)} style={{ height: 38, border: '1px solid #dce5ed', borderRadius: 7, padding: '0 10px', fontSize: 11 }}>
                     <option>POL Threaded (Standard Screw)</option>
-                    <option>Compact (Snap-On 20mm Solane)</option>
-                    <option>SNP Auto-Lock (Phoenix)</option>
-                    <option>POL Heavy (SRV)</option>
+                    <option>Compact 20mm (Snap-On)</option>
+                    <option>SNP Auto-Lock</option>
+                    <option>POL Heavy (SRV 50kg)</option>
                   </select>
                 </label>
                 <label>
@@ -1515,80 +2525,6 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
         </div>
       )}
 
-      {/* Issue Deposit Slip Modal */}
-      {issueDepositOpen && (
-        <div className="modal-backdrop" onMouseDown={() => setIssueDepositOpen(false)}>
-          <div className="modal" onMouseDown={e => e.stopPropagation()}>
-            <div className="modal-head">
-              <div>
-                <h2>Issue Customer Cylinder Deposit Slip</h2>
-                <p>Record cash deposit liability held in trust for loaned cylinder shell.</p>
-              </div>
-              <button onClick={() => setIssueDepositOpen(false)}><Icon name="close"/></button>
-            </div>
-            <form onSubmit={handleIssueDeposit}>
-              <div className="form-grid">
-                <label>
-                  <span>Customer Name<b>*</b></span>
-                  <input required value={depCustomer} onChange={e => setDepCustomer(e.target.value)} placeholder="e.g. Aling Nena Carinderia" />
-                </label>
-                <label>
-                  <span>Cylinder Serial<b>*</b></span>
-                  <input required value={depSerial} onChange={e => setDepSerial(e.target.value)} placeholder="e.g. PG-11-008122" />
-                </label>
-                <label>
-                  <span>Cylinder Size & Valve</span>
-                  <input required value={depSize} onChange={e => setDepSize(e.target.value)} placeholder="e.g. 11.0 kg POL" />
-                </label>
-                <label>
-                  <span>Deposit Cash Amount (₱)<b>*</b></span>
-                  <input required type="number" value={depAmount} onChange={e => setDepAmount(e.target.value)} placeholder="1800" />
-                </label>
-              </div>
-              <div className="detail-note" style={{ marginTop: 12 }}>
-                <span>ℹ</span> Deposit amount will be held in the store deposit liability account and is 100% refundable upon surrender of this shell.
-              </div>
-              <div className="modal-actions">
-                <Button variant="secondary" onClick={() => setIssueDepositOpen(false)}>Cancel</Button>
-                <Button type="submit">Issue Official Deposit Slip</Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Refund Deposit Modal */}
-      {refundModalItem && (
-        <div className="modal-backdrop" onMouseDown={() => setRefundModalItem(null)}>
-          <div className="modal payment-modal" onMouseDown={e => e.stopPropagation()}>
-            <div className="modal-head">
-              <div>
-                <h2>Process Shell Return & Cash Refund</h2>
-                <p>Surrender cylinder shell and return customer cash deposit.</p>
-              </div>
-              <button onClick={() => setRefundModalItem(null)}><Icon name="close"/></button>
-            </div>
-            <div className="detail-list">
-              <div><span>Deposit Slip ID:</span><strong>{refundModalItem[0]}</strong></div>
-              <div><span>Customer:</span><strong>{refundModalItem[1]}</strong></div>
-              <div><span>Cylinder Serial:</span><strong>{refundModalItem[2]}</strong></div>
-              <div><span>Shell Type:</span><strong>{refundModalItem[3]}</strong></div>
-              <div><span>Refund Cash Amount:</span><strong style={{ color: '#078a76', fontSize: 16 }}>{refundModalItem[4]}</strong></div>
-              <div><span>Days Out:</span><strong>{refundModalItem[6]}</strong></div>
-
-              <div className="detail-note">
-                <span>✓</span> Shell inspected: Footring solid, valve intact. Surrender confirmed. ₱{refundModalItem[4]} will be disbursed from drawer.
-              </div>
-
-              <div className="modal-actions">
-                <Button variant="secondary" onClick={() => setRefundModalItem(null)}>Cancel</Button>
-                <Button onClick={handleApproveRefund}>Approve & Refund Cash</Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Manual Transfer Modal */}
       {manualTransferOpen && (
         <div className="modal-backdrop" onMouseDown={() => setManualTransferOpen(false)}>
@@ -1646,8 +2582,8 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
 
       {/* Header */}
       <MasterHeader
-        title="Cylinders & Tanks Management"
-        subtitle="Master fleet inventory, forensic collar inspection, DOE RA 11592 quarantine bay, and customer deposit liabilities."
+        title="Cylinder Fleet Management"
+        subtitle="Master fleet inventory, forensic collar inspection, DOE RA 11592 quarantine bay, and physical yard movements."
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="secondary" icon="swap" onClick={() => setManualTransferOpen(true)}>
@@ -1662,7 +2598,7 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
 
       {/* Filter Tabs */}
       <FilterTabs
-        items={['Master Fleet Register', 'Quarantine & DOE Requalification (RA 11592)', 'Customer Deposits & Paautang Shells', 'Daily Movement & Transfer Log']}
+        items={['Master Fleet Register', 'Quarantine & DOE Requalification (RA 11592)', 'Daily Movement & Transfer Log']}
         active={tab}
         onChange={setTab}
       />
@@ -1670,70 +2606,43 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
       {/* TAB 1: MASTER FLEET REGISTER */}
       {tab === 'Master Fleet Register' && (
         <>
-          {/* Fleet Metrics Strip */}
-          <div className="fleet-metrics">
-            {[
-              ['Total Fleet Size', '1,024 Tanks'],
-              ['Full Ready (Warehouse)', '428'],
-              ['Empty Basyo (Yard)', '163'],
-              ['With Customer / Suki', '290'],
-              ['On Delivery Trucks', '78'],
-              ['Quarantine / Requal Bay', '65'],
-            ].map((x, i) => (
-              <Card key={x[0]}>
-                <i className={`metric-dot tone-${i}`} />
-                <span>{x[0]}</span>
-                <strong>{x[1]}</strong>
-              </Card>
-            ))}
-          </div>
+          {/* Fleet Composition Bar (Ops Data Layout) */}
+          <FleetCompositionBar />
 
           <Card className="records-card master-table">
-            <div className="toolbar filter-toolbar">
-              <SearchField value={search} onChange={setSearch} placeholder="Search cylinder serial, brand, or customer..." />
-              <select value={filterSize} onChange={e => setFilterSize(e.target.value)}>
+            <div className="filter-toolbar">
+              <SearchField value={search} onChange={setSearch} placeholder="Search serial or brand..." />
+              <select className="w-size" value={filterSize} onChange={e => setFilterSize(e.target.value)}>
                 <option value="All">Size: All</option>
-                <option value="11.0 kg">11.0 kg Household</option>
-                <option value="50.0 kg">50.0 kg Industrial</option>
-                <option value="2.7 kg">2.7 kg Camping</option>
+                <option value="11.0 kg">11.0 kg</option>
+                <option value="50.0 kg">50.0 kg</option>
+                <option value="2.7 kg">2.7 kg</option>
               </select>
-              <select value={filterValve} onChange={e => setFilterValve(e.target.value)}>
+              <select className="w-valve" value={filterValve} onChange={e => setFilterValve(e.target.value)}>
                 <option value="All">Valve: All</option>
-                <option value="POL">POL Threaded</option>
-                <option value="Compact">Compact Snap-On</option>
-                <option value="SNP">SNP Auto-Lock</option>
+                <option value="POL">POL</option>
+                <option value="Compact">Snap-On</option>
+                <option value="SNP">SNP</option>
               </select>
-              <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)}>
+              <select className="w-location" value={filterLocation} onChange={e => setFilterLocation(e.target.value)}>
                 <option value="All">Location: All</option>
-                <option value="Warehouse">Full (Warehouse)</option>
-                <option value="Yard">Empty Basyo (Yard)</option>
+                <option value="Warehouse">Warehouse (Full)</option>
+                <option value="Yard">Yard (Empty)</option>
                 <option value="Customer">With Customer</option>
                 <option value="Truck">On Truck</option>
-                <option value="Quarantine">Quarantine Bay</option>
-                <option value="Cross-Brand">Cross-Brand Cage</option>
+                <option value="Quarantine">Quarantine</option>
               </select>
-              <select value={filterRequal} onChange={e => setFilterRequal(e.target.value)}>
-                <option value="All">BPS Requal: All</option>
-                <option value="Valid">Valid Certified</option>
+              <select className="w-requal" value={filterRequal} onChange={e => setFilterRequal(e.target.value)}>
+                <option value="All">Requal: All</option>
+                <option value="Valid">Valid</option>
                 <option value="Due Soon">Due Soon</option>
-                <option value="Expired">Expired (Illegal)</option>
+                <option value="Expired">Expired</option>
               </select>
             </div>
 
-            <DataTable
-              columns={[
-                'Serial Number',
-                'Brand',
-                'Size',
-                'Valve Type',
-                'Tare Weight (TW)',
-                'Current Status & Location',
-                'Linked Custody / Truck',
-                '5-Yr Requal. Due',
-                'Quick Actions',
-              ]}
+            <CylinderRegisterTable
               rows={filteredFleet}
-              onRowClick={handleOpenInspector}
+              onInspect={handleOpenInspector}
             />
             <div className="pagination">
               <span>Showing {filteredFleet.length} of {fleet.length} sample tracked cylinders (1,024 master fleet)</span>
@@ -1817,74 +2726,7 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
         </>
       )}
 
-      {/* TAB 3: CUSTOMER DEPOSITS & PAUTANG SHELLS */}
-      {tab === 'Customer Deposits & Paautang Shells' && (
-        <>
-          <div className="deposit-kpis">
-            <Card>
-              <span>Total Deposit Liability Held</span>
-              <strong>₱522,000.00</strong>
-              <small>Refundable cash trust fund</small>
-            </Card>
-            <Card>
-              <span>Active Deposit Slips</span>
-              <strong style={{ color: '#078a76' }}>290 Slips</strong>
-              <small>Customers holding shells</small>
-            </Card>
-            <Card>
-              <span>Overdue Review (&gt;60 Days)</span>
-              <strong style={{ color: '#c64a50' }}>18 Cylinders</strong>
-              <small>Risk of missing basyo</small>
-            </Card>
-            <Card>
-              <span>Zero-Deposit Suki Accounts</span>
-              <strong style={{ color: '#b78103' }}>8 Accounts</strong>
-              <small>Owner authorized paautang</small>
-            </Card>
-          </div>
-
-          <Card className="records-card master-table">
-            <div className="toolbar">
-              <SearchField value={search} onChange={setSearch} placeholder="Search deposit slips, customers, or serials..." />
-              <Button icon="plus" onClick={() => setIssueDepositOpen(true)}>
-                Issue New Deposit Slip
-              </Button>
-              <Button variant="secondary" icon="download" onClick={() => showToast('Customer deposits exported: Cylinder_Deposits_Master.xlsx')}>
-                Export Deposit List
-              </Button>
-            </div>
-            <DataTable
-              columns={[
-                'Deposit Slip ID',
-                'Customer Name',
-                'Cylinder Serial',
-                'Size & Valve',
-                'Deposit Amount',
-                'Date Issued',
-                'Outstanding',
-                'Status & Action',
-              ]}
-              rows={deposits.filter(r => r.join(' ').toLowerCase().includes(search.toLowerCase())).map(row => [
-                row[0],
-                row[1],
-                row[2],
-                row[3],
-                row[4],
-                row[5],
-                row[6],
-                row[7] === 'Active Deposit' ? 'Active (Click to Refund)' : row[7]
-              ])}
-              onRowClick={(row) => {
-                if (row[7].includes('Active')) {
-                  setRefundModalItem(row)
-                }
-              }}
-            />
-          </Card>
-        </>
-      )}
-
-      {/* TAB 4: DAILY MOVEMENT & TRANSFER LOG */}
+      {/* TAB 3: DAILY MOVEMENT & TRANSFER LOG */}
       {tab === 'Daily Movement & Transfer Log' && (
         <Card className="records-card master-table">
           <div className="toolbar">
@@ -1919,8 +2761,8 @@ function CylinderFleet({ setPage }: { setPage: (page: string) => void }) {
 
 function StoreInventory() {
   const initialProducts = [
-    ['REG-CMP-01', 'Solane Snap-On Safety Regulator (20mm)', 'Regulators', 'Solane / Isla LPG', '28 pcs', '₱480.00', '₱650.00', '26%', 'In Stock'],
-    ['REG-POL-01', 'Heavy Duty Brass POL Screw Regulator', 'Regulators', 'Gasul / Generic', '15 pcs', '₱380.00', '₱520.00', '27%', 'In Stock'],
+    ['REG-CMP-01', 'SEAGAS Snap-On Safety Regulator (20mm)', 'Regulators', 'SEAOIL SEAGAS Depot', '28 pcs', '₱480.00', '₱650.00', '26%', 'In Stock'],
+    ['REG-POL-01', 'SEAGAS Heavy Duty Brass POL Screw Regulator', 'Regulators', 'SEAOIL SEAGAS Depot', '15 pcs', '₱380.00', '₱520.00', '27%', 'In Stock'],
     ['HSE-ORG-2M', 'Reinforced Heavy Duty Orange LPG Hose (2m)', 'Hoses & Clamps', 'Eagle Brand', '42 pcs', '₱110.00', '₱200.00', '45%', 'In Stock'],
     ['CLP-SS-01', 'Stainless Steel Worm Clamps (Pair)', 'Hoses & Clamps', 'Local Hardware', '110 pairs', '₱15.00', '₱35.00', '57%', 'In Stock'],
     ['STV-SGL-CI', 'Cast Iron Single Burner High-Pressure Stove', 'Stoves & Burners', 'Kovea', '8 pcs', '₱750.00', '₱1,100.00', '32%', 'In Stock'],
@@ -2023,7 +2865,7 @@ function StoreInventory() {
                 </label>
                 <label>
                   <span>Product Name<b>*</b></span>
-                  <input required value={pName} onChange={e => setPName(e.target.value)} placeholder="e.g. Solane High Pressure Hose (3m)" />
+                  <input required value={pName} onChange={e => setPName(e.target.value)} placeholder="e.g. Heavy Duty LPG Reinforced Hose (3m)" />
                 </label>
                 <label>
                   <span>Category<b>*</b></span>
@@ -2177,7 +3019,93 @@ function StoreInventory() {
 }
 
 
+interface PosInventoryProduct {
+  sku: string
+  name: string
+  category: string
+  brand: string
+  price: number
+  stock: number
+  status: 'In Stock' | 'Low Stock' | 'Out of Stock'
+}
+
+interface PosCartItem {
+  sku: string
+  name: string
+  category: string
+  price: number
+  qty: number
+  stock: number
+}
+
+const posCatalog: PosInventoryProduct[] = [
+  {
+    sku: 'REG-SNAP-01',
+    name: 'SEAGAS Snap-On 20mm Safety Regulator',
+    category: 'Regulators',
+    brand: 'SEAOIL SEAGAS Depot',
+    price: 380,
+    stock: 45,
+    status: 'In Stock',
+  },
+  {
+    sku: 'REG-POL-02',
+    name: 'Heavy-Duty Brass POL Regulator',
+    category: 'Regulators',
+    brand: 'SEAOIL SEAGAS Depot',
+    price: 450,
+    stock: 28,
+    status: 'In Stock',
+  },
+  {
+    sku: 'HOSE-ORG-01',
+    name: 'Reinforced Orange LPG Hose (2m)',
+    category: 'Hoses & Clamps',
+    brand: 'Eagle Brand',
+    price: 180,
+    stock: 60,
+    status: 'In Stock',
+  },
+  {
+    sku: 'CLAMP-SS-01',
+    name: 'Stainless Steel Worm Clamp (Pair)',
+    category: 'Hoses & Clamps',
+    brand: 'Local Hardware',
+    price: 35,
+    stock: 120,
+    status: 'In Stock',
+  },
+  {
+    sku: 'BRN-CI-01',
+    name: 'Cast-Iron Heavy Duty Burner',
+    category: 'Stoves & Burners',
+    brand: 'Kovea Industrial',
+    price: 850,
+    stock: 8,
+    status: 'Low Stock',
+  },
+  {
+    sku: 'BRN-COMM-40',
+    name: 'Heavy Commercial Burner C-40',
+    category: 'Stoves & Burners',
+    brand: 'SuperFlame GenSan',
+    price: 1450,
+    stock: 0,
+    status: 'Out of Stock',
+  },
+  {
+    sku: 'VAL-POL-REP',
+    name: 'POL Brass Replacement Core Valve',
+    category: 'Spare Parts',
+    brand: 'BPS Certified',
+    price: 220,
+    stock: 24,
+    status: 'In Stock',
+  },
+]
+
 function SalesPOS() {
+  const { settings } = useStationSettings()
   const [type, setType] = useState('Palit-Basyo')
   const [swapCondition, setSwapCondition] = useState('clean')
   const [invoice, setInvoice] = useState(false)
@@ -2195,14 +3123,86 @@ function SalesPOS() {
   const [newCustPhone, setNewCustPhone] = useState('')
   const [toast, setToast] = useState('')
 
-  const basePrice = 1040
-  const swapFee = swapCondition === 'offbrand' ? 150 : swapCondition === 'requal' ? 80 : 0
-  const depositFee = type === 'New Cylinder' ? 1800 : 0
-  const totalAmount = basePrice + swapFee + depositFee
+  // POS Inventory Product Selection Local State
+  const [invSearch, setInvSearch] = useState('')
+  const [invCategory, setInvCategory] = useState('All')
+  const [posCart, setPosCart] = useState<PosCartItem[]>([])
+
+  // Outgoing cylinder serial & safety check
+  const [outgoingSerial, setOutgoingSerial] = useState('SG-11-004521')
+  const cylinderCheck = checkQuarantineStatus(outgoingSerial)
+
+  const agingDaysThreshold = parseInt(settings.agingLockDays, 10) || 30
+  const basePrice = parseFloat(settings.refill11kg) || 1040
+  const swapFee = swapCondition === 'offbrand' ? (parseFloat(settings.offBrandRequalFee) || 150) : swapCondition === 'requal' ? (parseFloat(settings.requalTestingFee) || 80) : 0
+  const depositFee = type === 'New Cylinder' ? (parseFloat(settings.deposit11kg) || 1800) : 0
+  const cylinderSubtotal = basePrice + swapFee + depositFee
+
+  const accessoriesTotal = posCart.reduce((sum, item) => sum + item.price * item.qty, 0)
+  const grandTotal = cylinderSubtotal + accessoriesTotal
+  const configuredVat = parseFloat(settings.vatRate) || 0
+  const isVatRegistered = settings.taxRegistration.includes('12% VAT')
+  const vatAmount = isVatRegistered && configuredVat > 0 ? (grandTotal * configuredVat) / (100 + configuredVat) : 0
+  const netOfVat = grandTotal - vatAmount
+
+  // Current customer risk evaluation
+  const custName = customer.split('·')[0].trim()
+  const currentRisk = customerRiskData.find(r => r.name.toLowerCase() === custName.toLowerCase())
+  const riskEval = currentRisk ? evaluateRisk(currentRisk, agingDaysThreshold) : null
+
+  const filteredCatalog = useMemo(() => {
+    return posCatalog.filter(p => {
+      const matchQuery = p.name.toLowerCase().includes(invSearch.toLowerCase()) || p.sku.toLowerCase().includes(invSearch.toLowerCase())
+      if (!matchQuery) return false
+      if (invCategory !== 'All' && p.category !== invCategory) return false
+      return true
+    })
+  }, [invSearch, invCategory])
 
   function showToast(msg: string) {
     setToast(msg)
     setTimeout(() => setToast(''), 2800)
+  }
+
+  function handleAddToCart(p: PosInventoryProduct) {
+    if (p.stock <= 0) return
+    setPosCart(prev => {
+      const existing = prev.find(i => i.sku === p.sku)
+      if (existing) {
+        if (existing.qty < p.stock) {
+          return prev.map(i => (i.sku === p.sku ? { ...i, qty: i.qty + 1 } : i))
+        }
+        return prev
+      }
+      return [...prev, { sku: p.sku, name: p.name, category: p.category, price: p.price, qty: 1, stock: p.stock }]
+    })
+    showToast(`Added ${p.name} to invoice!`)
+  }
+
+  function handleIncrement(sku: string) {
+    setPosCart(prev =>
+      prev.map(i => {
+        if (i.sku === sku && i.qty < i.stock) {
+          return { ...i, qty: i.qty + 1 }
+        }
+        return i
+      })
+    )
+  }
+
+  function handleDecrement(sku: string) {
+    setPosCart(prev => {
+      const item = prev.find(i => i.sku === sku)
+      if (item && item.qty <= 1) {
+        return prev.filter(i => i.sku !== sku)
+      }
+      return prev.map(i => (i.sku === sku ? { ...i, qty: i.qty - 1 } : i))
+    })
+  }
+
+  function handleRemoveCartItem(sku: string) {
+    setPosCart(prev => prev.filter(i => i.sku !== sku))
+    showToast('Removed item from invoice.')
   }
 
   function handleAddQuickCustomer(e: FormEvent) {
@@ -2217,8 +3217,16 @@ function SalesPOS() {
   }
 
   function handleCompleteSale() {
+    if (cylinderCheck.isQuarantined) {
+      showToast('Blocked! Cannot release a quarantined cylinder under safety law.')
+      return
+    }
+    if (riskEval && riskEval.locked) {
+      showToast('Transaction blocked — account is hard-locked. Resolve the outstanding violation first.')
+      return
+    }
     setInvoice(true)
-    showToast(`Sale completed! Official BIR Invoice generated for ${customer.split('·')[0].trim()}`)
+    showToast(`Sale completed! Official BIR Invoice generated for ${custName}`)
   }
 
   return (
@@ -2229,21 +3237,34 @@ function SalesPOS() {
       {invoice && (
         <InvoiceModal
           data={{
-            invoiceNo: 'INV-2026-0315',
-            customerName: customer.split('·')[0].trim(),
-            address: 'Mabini St., Makati',
+            invoiceNo: `${settings.invoicePrefix}0315`,
+            customerName: custName,
+            customerBiz: custName.includes('Restaurant') || custName.includes('Food') || custName.includes('Bakery') ? custName : '—',
+            address: 'J. Catolico St., Brgy. Lagao, GenSan',
             contact: '0917 234 8891',
             tin: 'TIN-882-194',
             staffCode: 'ST001',
             staffName: 'Paolo Mendoza',
-            paymentMethod,
-            serial: 'PG-11-004521',
-            brand: 'Petron Gasul',
+            paymentMethod: paymentMethod,
+            amountPaid: paymentMethod === 'Paautang / Credit' ? 0 : grandTotal,
+            creditOutstanding: paymentMethod === 'Paautang / Credit'
+              ? (currentRisk?.currentBalance || 0)
+              : 0,
+            serial: outgoingSerial,
+            brand: settings.brandName,
             netWeight: '11.0 kg',
-            subtotal: `₱${basePrice.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
-            amount: `₱${totalAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+            cylinderUnitPrice: basePrice,
+            depositFee: depositFee,
+            swapFee: swapFee,
             hasReturnedEmpty: type === 'Palit-Basyo',
-            returnedSerial: swapCondition === 'offbrand' ? 'Solane Shell (Off-Brand Ariglo)' : 'PG-11-003871',
+            returnedSerial: swapCondition === 'offbrand' ? 'Off-Brand Shell (Non-SEAGAS)' : 'SG-11-003871',
+            vatClassification: isVatRegistered ? 'vatable' : 'exempt',
+            additionalItems: posCart.map(item => ({
+              name: item.name,
+              sku: item.sku,
+              qty: item.qty,
+              unitPrice: item.price,
+            })),
           }}
           onClose={() => setInvoice(false)}
         />
@@ -2287,22 +3308,51 @@ function SalesPOS() {
       />
       <div className="pos-layout">
         <Card className="pos-builder">
-          <CardTitle icon="swap" title="Order Builder" subtitle="Scan outgoing and incoming cylinder assets" />
+          <CardTitle icon="swap" title="Order Builder" subtitle="Scan outgoing/incoming cylinder assets & select store inventory accessories" />
 
+          {/* 1. Customer Selection */}
           <div className="pos-section">
             <label className="field-label">Customer Selection</label>
             <div className="inline-field">
-              <select value={customer} onChange={e => setCustomer(e.target.value)}>
+              <select
+                value={customer}
+                onChange={e => setCustomer(e.target.value)}
+              >
                 {customerList.map(c => <option key={c}>{c}</option>)}
               </select>
               <Button variant="secondary" icon="plus" onClick={() => setNewCustomerModal(true)}>New Customer</Button>
             </div>
+
+            {/* Real-time AR Risk Check Indicator */}
+            {riskEval && (
+              <>
+                {riskEval.locked ? (
+                  <div className="pos-risk-alert">
+                    <div>
+                      <strong>🔒 Account Hard-Locked — Cannot Process ({riskEval.reason === 'BOTH' ? 'Aging + Float Breach' : riskEval.reason === 'AGING' ? 'Overdue Invoice' : 'Float Limit Exceeded'})</strong>
+                      <span>
+                        {riskEval.reason === 'AGING' && `Oldest bill is ${currentRisk?.oldestInvoiceDays} days overdue (limit: ${agingDaysThreshold}d). Collect payment to clear the lock.`}
+                        {riskEval.reason === 'FLOAT' && `Customer holds ${currentRisk?.currentFloat} unreturned tanks (max: ${currentRisk?.maxFloatLimit}). Require shell return to clear.`}
+                        {riskEval.reason === 'BOTH' && `Both aging (${currentRisk?.oldestInvoiceDays}d) and float (${currentRisk?.currentFloat}/${currentRisk?.maxFloatLimit}) limits breached. Resolve both to unlock.`}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pos-risk-ok" style={{ marginTop: 8 }}>
+                    <Icon name="check" size={14} />
+                    <span>Account in Good Standing · Lending Tier: <strong>{currentRisk?.lendingTier}</strong> (Float: {currentRisk?.currentFloat}/{currentRisk?.maxFloatLimit})</span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
+          {/* 2. Transaction Type Switch */}
           <div className="pos-section">
             <label className="field-label">Transaction Type</label>
             <div className="type-switch">
               <button
+                type="button"
                 className={type === 'Palit-Basyo' ? 'active' : ''}
                 onClick={() => setType('Palit-Basyo')}
               >
@@ -2311,6 +3361,7 @@ function SalesPOS() {
                 <span>Gas charge only</span>
               </button>
               <button
+                type="button"
                 className={type === 'New Cylinder' ? 'active' : ''}
                 onClick={() => setType('New Cylinder')}
               >
@@ -2321,30 +3372,80 @@ function SalesPOS() {
             </div>
           </div>
 
+          {/* 3. Outgoing Full Tank */}
           <div className="pos-section">
-            <h3>Outgoing Full Tank</h3>
-            <div className="pos-fields">
-              {[
-                ['Brand', 'Petron Gasul'],
-                ['Size', '11.0 kg'],
-                ['Valve System', 'POL Threaded'],
-                ['Serial Scanner', 'PG-11-004521'],
-              ].map((x) => (
-                <label key={x[0]}>
-                  <span>{x[0]}</span>
-                  <input value={x[1]} readOnly />
-                </label>
-              ))}
+            <div className="pos-section-title">
+              <h3>Outgoing Full Tank (SEAGAS Fleet)</h3>
+              <StatusChip tone={cylinderCheck.isQuarantined ? 'danger' : 'ok'}>
+                {cylinderCheck.isQuarantined ? 'Quarantined · Blocked' : 'Full Stock · Ready'}
+              </StatusChip>
             </div>
+            <div className="pos-fields">
+              <label>
+                <span>Brand</span>
+                <input value="SEAGAS (SEAOIL)" readOnly />
+              </label>
+              <label>
+                <span>Size</span>
+                <input value="11.0 kg" readOnly />
+              </label>
+              <label>
+                <span>Valve System</span>
+                <input value="POL Threaded" readOnly />
+              </label>
+              <label>
+                <span>Serial Scanner</span>
+                <input
+                  value={outgoingSerial}
+                  onChange={e => setOutgoingSerial(e.target.value)}
+                  style={cylinderCheck.isQuarantined ? { borderColor: '#ef4444', background: '#fdf2f2', color: '#b91c1c', fontWeight: 'bold' } : {}}
+                  placeholder="Scan or type SG-* serial"
+                />
+              </label>
+            </div>
+
+            {cylinderCheck.isQuarantined ? (
+              <div className="quarantine-stop-alert">
+                <Icon name="close" size={16} />
+                <div>
+                  <strong>⛔ CANNOT SELL: Cylinder is Quarantined</strong>
+                  <span>{cylinderCheck.reason}</span>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: '#71839c' }}>Try quick test:</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ height: 24, fontSize: 11, padding: '0 8px' }}
+                  onClick={() => setOutgoingSerial('SG-11-004521')}
+                >
+                  ✓ Good Tank (SG-11-004521)
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ height: 24, fontSize: 11, padding: '0 8px', color: '#c64a50' }}
+                  onClick={() => setOutgoingSerial('SG-11-002109')}
+                >
+                  ⚠ Quarantined Tank (SG-11-002109)
+                </button>
+              </div>
+            )}
           </div>
 
+          {/* 4. Incoming Empty Basyo (if Palit-Basyo) */}
           {type === 'Palit-Basyo' && (
-            <div className="pos-section incoming" style={{ borderBottom: 'none' }}>
-              <h3>Incoming Empty Basyo Condition & Ariglo</h3>
+            <div className="pos-section incoming">
+              <div className="pos-section-title">
+                <h3>Incoming Empty Basyo (SEAGAS Standard)</h3>
+                <StatusChip tone="info">Shell Return</StatusChip>
+              </div>
               <div className="pos-fields">
                 {[
-                  ['Brand Received', swapCondition === 'offbrand' ? 'Solane (Competitor Tank)' : 'Petron Gasul'],
-                  ['Serial Stamped', 'PG-11-003871'],
+                  ['Brand Received', 'SEAGAS (SEAOIL)'],
+                  ['Serial Stamped', 'SG-11-003871'],
                 ].map((x) => (
                   <label key={x[0]}>
                     <span>{x[0]}</span>
@@ -2354,108 +3455,267 @@ function SalesPOS() {
               </div>
 
               <div className="swap-condition-selector">
-                <span className="field-label" style={{ marginTop: 10, display: 'block' }}>Shell Inspection & Swap Surcharge</span>
+                <span className="field-label" style={{ marginTop: 10, display: 'block' }}>Shell Inspection Status</span>
                 <div className="condition-radios">
                   <label className={`condition-chip ${swapCondition === 'clean' ? 'active' : ''}`}>
                     <input type="radio" name="swap" checked={swapCondition === 'clean'} onChange={() => setSwapCondition('clean')} />
-                    <span>✓ Clean Matching Tank (₱0)</span>
-                  </label>
-                  <label className={`condition-chip ${swapCondition === 'offbrand' ? 'active' : ''}`}>
-                    <input type="radio" name="swap" checked={swapCondition === 'offbrand'} onChange={() => setSwapCondition('offbrand')} />
-                    <span>⚠ Off-Brand Tank (+₱150 Ariglo)</span>
+                    <span>✓ Standard SEAGAS Basyo Returned (₱0)</span>
                   </label>
                   <label className={`condition-chip ${swapCondition === 'requal' ? 'active' : ''}`}>
                     <input type="radio" name="swap" checked={swapCondition === 'requal'} onChange={() => setSwapCondition('requal')} />
-                    <span>⚠ Expired / Requal (+₱80)</span>
+                    <span>⚠ Expired / Due Requal (+₱80 BPS Test)</span>
                   </label>
                 </div>
               </div>
             </div>
           )}
+
+          {/* 5. Inventory Items (Accessories & Hardware) */}
+          <div className="pos-inventory-section">
+            <div className="pos-inventory-header">
+              <div>
+                <h3><Icon name="receive" size={16} /> Inventory Items (Accessories & Parts)</h3>
+                <p>Select safety regulators, reinforced hoses, burners, and store hardware</p>
+              </div>
+              <span className="pos-inventory-badge">{filteredCatalog.length} Products</span>
+            </div>
+
+            <div className="pos-inventory-controls">
+              <div className="pos-inventory-search-wrap">
+                <Icon name="search" size={14} />
+                <input
+                  type="text"
+                  value={invSearch}
+                  onChange={e => setInvSearch(e.target.value)}
+                  placeholder="Search inventory items, SKU code, or parts..."
+                />
+              </div>
+            </div>
+
+            <div className="pos-inventory-filter-pills">
+              {['All', 'Regulators', 'Hoses & Clamps', 'Stoves & Burners', 'Spare Parts'].map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  className={`pos-pill-btn ${invCategory === cat ? 'active' : ''}`}
+                  onClick={() => setInvCategory(cat)}
+                >
+                  {cat === 'All' ? 'All Categories' : cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="pos-inventory-grid">
+              {filteredCatalog.map(p => {
+                const inCart = posCart.find(i => i.sku === p.sku)
+                const qtyInCart = inCart?.qty || 0
+                const isSelected = qtyInCart > 0
+                const isOut = p.stock <= 0
+                const isLow = p.stock > 0 && p.stock <= 10
+
+                return (
+                  <div
+                    key={p.sku}
+                    className={`pos-product-card ${isSelected ? 'selected' : ''} ${isOut ? 'out-of-stock' : ''}`}
+                  >
+                    <div className="pos-product-card-head">
+                      <span className="pos-product-sku">{p.sku}</span>
+                      <span className={`pos-stock-tag ${isOut ? 'out-of-stock' : isLow ? 'low-stock' : 'in-stock'}`}>
+                        <i /> {isOut ? 'Out of Stock' : isLow ? `Low Stock (${p.stock})` : `In Stock (${p.stock})`}
+                      </span>
+                    </div>
+
+                    <h4 className="pos-product-title" title={p.name}>{p.name}</h4>
+                    <div className="pos-product-category-hint">{p.category} · {p.brand}</div>
+
+                    <div className="pos-product-foot">
+                      <span className="pos-product-price">₱{p.price.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+                      {isSelected ? (
+                        <div className="pos-stepper">
+                          <button
+                            type="button"
+                            className="pos-stepper-btn"
+                            onClick={() => handleDecrement(p.sku)}
+                            title="Decrease quantity"
+                          >
+                            −
+                          </button>
+                          <span className="pos-stepper-val">{qtyInCart}</span>
+                          <button
+                            type="button"
+                            className="pos-stepper-btn"
+                            onClick={() => handleIncrement(p.sku)}
+                            disabled={qtyInCart >= p.stock}
+                            title="Increase quantity"
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="pos-add-btn"
+                          disabled={isOut}
+                          onClick={() => handleAddToCart(p)}
+                        >
+                          <Icon name="plus" size={12} /> Add
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         </Card>
 
+        {/* Right Column: Sticky Invoice & Checkout Panel */}
         <Card className="pos-invoice">
-          <div className="invoice-preview-head">
+          <div className="pos-invoice-header">
             <div>
-              <span>INVOICE</span>
-              <strong>INV-2026-0315</strong>
+              <span className="pos-invoice-badge">Official BIR Invoice</span>
+              <div className="pos-invoice-num">{'INV-2026-0315'}</div>
             </div>
-            <small>
-              Oct 16, 2026<br />
-              Cashier ST001 · Paolo Mendoza
-            </small>
+            <div className="pos-invoice-meta">
+              <strong>October 16, 2026</strong><br />
+              <span>Cashier: ST001 Paolo Mendoza</span><br />
+              <small style={{ color: '#078a76', fontWeight: 600 }}>{custName}</small>
+            </div>
           </div>
 
-          <div className="invoice-line">
-            <div>
-              <strong>11kg Petron Gasul Refill</strong>
-              <span>Gas Content · PG-11-004521</span>
+          {/* 1. LPG Charges */}
+          <div className="pos-invoice-section-label">
+            1. LPG & Cylinder Assets
+            <span>Cylinder Flow</span>
+          </div>
+
+          <div className="pos-invoice-row">
+            <div className="pos-invoice-row-info">
+              <strong>11.0 kg SEAGAS LPG Refill</strong>
+              <span>Gas content · Serial {outgoingSerial}</span>
             </div>
-            <b>₱{basePrice.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</b>
+            <span className="pos-invoice-row-amount">₱{basePrice.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
           </div>
 
           {type === 'Palit-Basyo' ? (
-            <div className="invoice-line muted-line">
-              <div>
+            <div className="pos-invoice-row" style={{ color: '#64748b' }}>
+              <div className="pos-invoice-row-info">
                 <strong>Empty Basyo Surrendered</strong>
-                <span>{swapCondition === 'offbrand' ? 'Solane Shell (Off-Brand Ariglo)' : 'PG-11-003871'}</span>
+                <span>{swapCondition === 'offbrand' ? 'Off-Brand Shell (Non-SEAGAS)' : 'SEAGAS Shell SG-11-003871'}</span>
               </div>
-              <b>-1 unit</b>
+              <span className="pos-invoice-row-amount">-1 Shell (₱0.00)</span>
             </div>
           ) : (
-            <div className="invoice-line">
-              <div>
+            <div className="pos-invoice-row">
+              <div className="pos-invoice-row-info">
                 <strong>Cylinder Shell Deposit</strong>
-                <span>Refundable metal liability</span>
+                <span>Refundable metallic asset liability</span>
               </div>
-              <b>₱{depositFee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</b>
+              <span className="pos-invoice-row-amount">₱{depositFee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
             </div>
           )}
 
           {swapFee > 0 && (
-            <div className="invoice-line" style={{ color: '#c06100' }}>
-              <div>
+            <div className="pos-invoice-row" style={{ color: '#c06100' }}>
+              <div className="pos-invoice-row-info">
                 <strong>{swapCondition === 'offbrand' ? 'Ariglo / Off-Brand Swap Fee' : 'Expired Requal Surcharge'}</strong>
-                <span>Official swap handling</span>
+                <span>Official swap handling & testing</span>
               </div>
-              <b>+₱{swapFee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</b>
+              <span className="pos-invoice-row-amount">+₱{swapFee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
             </div>
           )}
 
-          <div className="pos-totals">
-            <p>
-              <span>Subtotal</span>
-              <strong>₱{totalAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
-            </p>
-            <p>
-              <span>VAT (12%)</span>
-              <strong>Included</strong>
-            </p>
-            <p>
+          {/* 2. Store Inventory Items */}
+          <div className="pos-invoice-section-label">
+            2. Store Accessories & Hardware
+            <span>{posCart.reduce((sum, item) => sum + item.qty, 0)} Items</span>
+          </div>
+
+          {posCart.length === 0 ? (
+            <div className="pos-empty-cart-hint">
+              No store accessories added yet.<br />Cashier may select regulators, hoses, or burners on the left.
+            </div>
+          ) : (
+            posCart.map(item => (
+              <div key={item.sku} className="pos-invoice-row">
+                <div className="pos-invoice-row-info">
+                  <strong>{item.name}</strong>
+                  <span>{item.qty} pcs @ ₱{item.price.toFixed(2)} · {item.sku}</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span className="pos-invoice-row-amount">₱{(item.price * item.qty).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+                  <button
+                    type="button"
+                    className="pos-remove-cart-btn"
+                    onClick={() => handleRemoveCartItem(item.sku)}
+                    title="Remove item"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+
+          {/* 3. Totals & Tax Breakdown */}
+          <div className="pos-invoice-totals">
+            <div className="pos-totals-line">
+              <span>LPG Cylinder Subtotal</span>
+              <strong>₱{cylinderSubtotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+            </div>
+            {accessoriesTotal > 0 && (
+              <div className="pos-totals-line">
+                <span>Hardware / Accessories Subtotal</span>
+                <strong>₱{accessoriesTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+              </div>
+            )}
+            <div className="pos-totals-line">
+              <span>12% EVAT Included</span>
+              <strong>₱{vatAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+            </div>
+            <div className="pos-totals-line">
+              <span>Net Sales (ex-VAT)</span>
+              <strong>₱{netOfVat.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+            </div>
+            <div className="pos-totals-line grand">
               <span>Total Due</span>
-              <strong>₱{totalAmount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
-            </p>
+              <strong>₱{grandTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+            </div>
           </div>
 
-          <h3>Payment Method</h3>
-          <div className="payment-methods">
-            {['Cash', 'GCash / Maya', 'Paautang / Credit'].map(m => (
-              <button
-                key={m}
-                className={paymentMethod === m ? 'active' : ''}
-                onClick={() => setPaymentMethod(m)}
-              >
-                {m}
-              </button>
-            ))}
+          {/* 4. Payment Method Selection */}
+          <div className="pos-payment-block">
+            <h4>Payment Method</h4>
+            <div className="pos-payment-options">
+              {['Cash', 'GCash / Maya', 'Paautang / Credit'].map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  className={paymentMethod === m ? 'active' : ''}
+                  onClick={() => setPaymentMethod(m)}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="pos-actions">
-            <Button variant="secondary" icon="file" onClick={() => setInvoice(true)}>
+          {/* 5. Checkout Actions */}
+          <div className="pos-checkout-actions">
+            <Button
+              variant="secondary"
+              icon="file"
+              onClick={() => setInvoice(true)}
+              disabled={cylinderCheck.isQuarantined}
+            >
               Print BIR Invoice
             </Button>
-            <Button icon="check" onClick={handleCompleteSale}>
-              Complete & Release
+            <Button
+              icon="check"
+              onClick={handleCompleteSale}
+              disabled={cylinderCheck.isQuarantined}
+            >
+              {cylinderCheck.isQuarantined ? 'Blocked: Quarantined Tank' : 'Complete & Release'}
             </Button>
           </div>
         </Card>
@@ -2465,9 +3725,10 @@ function SalesPOS() {
 }
 
 function ReceivingQC() {
+  const { settings } = useStationSettings()
   const [truckPlate, setTruckPlate] = useState('NDX-4821 (Isuzu 6-Wheeler Lorry)')
   const [driverName, setDriverName] = useState('Rodrigo "Digong" Cruz')
-  const [originPlant, setOriginPlant] = useState('Petron Pandacan Bulk Terminal')
+  const [originPlant, setOriginPlant] = useState(settings.depotHub)
   const [grossWeight, setGrossWeight] = useState('24.4')
   const [tareWeight, setTareWeight] = useState('13.4')
   const [confirmed, setConfirmed] = useState(false)
@@ -2479,12 +3740,14 @@ function ReceivingQC() {
   const gross = parseFloat(grossWeight) || 0
   const tare = parseFloat(tareWeight) || 0
   const netGas = (gross - tare).toFixed(2)
-  const isWeightValid = parseFloat(netGas) >= 10.9 && parseFloat(netGas) <= 11.2
+  const minNet = parseFloat(settings.minNetWeight11kg) || 10.9
+  const maxNet = parseFloat(settings.maxNetWeight11kg) || 11.2
+  const isWeightValid = parseFloat(netGas) >= minNet && parseFloat(netGas) <= maxNet
 
   const checks = [
     'Safety Seal Intact (Tamper-evident holographic cap verified)',
-    'Weight Compliance (Spot-check: Gross − Tare = 11.0 kg net target)',
-    '5-Year Requalification Valid (Dates checked on collar)',
+    `Weight Compliance (Spot-check: Gross − Tare = ${minNet}–${maxNet} kg net target)`,
+    `${settings.requalYears}-Year Requalification Valid (Dates checked on collar)`,
     'No Rust, Bulging, or Valve Thread Damage',
   ]
 
@@ -2507,7 +3770,7 @@ function ReceivingQC() {
           <div className="master-form">
             <label>
               <span>Supplier Name</span>
-              <input value="Petron Corporation / Isla LPG" readOnly />
+              <input value="SEAOIL SEAGAS Bulk Terminal (Makar, GenSan)" readOnly />
             </label>
             <label>
               <span>Supplier DR / Sales Invoice No.<b>*</b></span>
@@ -2622,10 +3885,10 @@ function ReceivingQC() {
 
 function DispatchSettlement() {
   const initialDeliveries = [
-    ['DEL-1018', 'ABC Restaurant', 'Ortigas Ave., Pasig', 'PH-11-004617 · SNP', 'ST003 · Mark Ramos', 'Credit DR', 'In Transit', 'View Slip'],
-    ['DEL-1019', 'Maria Santos', 'Mabini St., Makati', 'PG-11-004722 · POL', 'ST005 · Nilo Cruz', 'COD', 'Pending', 'View Slip'],
-    ['DEL-1017', 'Ana Reyes', 'J.P. Rizal, Makati', 'SL-11-004305 · CMP', 'ST003 · Mark Ramos', 'Paid', 'Delivered', 'View Slip'],
-    ['DEL-1020', 'LM Food House', 'Shaw Blvd., Mandaluyong', 'PG-11-004812 · POL', 'ST003 · Mark Ramos', 'Credit DR', 'In Transit', 'View Slip'],
+    ['DEL-1018', 'ABC Restaurant', 'National Highway, Brgy. Labangal, GenSan', 'SG-11-004617 · SNP', 'ST003 · Mark Ramos', 'Credit DR', 'In Transit', 'View Slip'],
+    ['DEL-1019', 'Maria Santos', 'J. Catolico St., Brgy. Lagao, GenSan', 'SG-11-004722 · POL', 'ST005 · Nilo Cruz', 'COD', 'Pending', 'View Slip'],
+    ['DEL-1017', 'Ana Reyes', 'Aparente St., Brgy. City Heights, GenSan', 'SG-11-004305 · CMP', 'ST003 · Mark Ramos', 'Paid', 'Delivered', 'View Slip'],
+    ['DEL-1020', 'LM Food House', 'Makar Junction, Brgy. Labangal, GenSan', 'SG-11-004812 · POL', 'ST003 · Mark Ramos', 'Credit DR', 'In Transit', 'View Slip'],
   ]
 
   const [tab, setTab] = useState('Active Deliveries & Dispatch')
@@ -2638,10 +3901,12 @@ function DispatchSettlement() {
 
   // New Dispatch Form Fields
   const [dCust, setDCust] = useState('ABC Restaurant')
-  const [dAddress, setDAddress] = useState('Ortigas Ave., Pasig')
-  const [dSerial, setDSerial] = useState('PG-11-004920 · POL')
+  const [dAddress, setDAddress] = useState('National Highway, Brgy. Labangal, GenSan')
+  const [dSerial, setDSerial] = useState('SG-11-004920 · POL')
   const [dDriver, setDDriver] = useState('ST003 · Mark Ramos')
   const [dPayment, setDPayment] = useState('Credit DR')
+
+  const dSerialCheck = checkQuarantineStatus(dSerial)
 
   function showToast(msg: string) {
     setToast(msg)
@@ -2650,6 +3915,10 @@ function DispatchSettlement() {
 
   function handleCreateDispatch(e: FormEvent) {
     e.preventDefault()
+    if (dSerialCheck.isQuarantined) {
+      showToast('Blocked! Cannot dispatch a quarantined cylinder.')
+      return
+    }
     const newId = `DEL-${1021 + deliveries.length}`
     const newRow = [
       newId,
@@ -2707,11 +3976,17 @@ function DispatchSettlement() {
                 </label>
                 <label>
                   <span>Delivery Address / Barangay<b>*</b></span>
-                  <input required value={dAddress} onChange={e => setDAddress(e.target.value)} placeholder="e.g. Brgy. San Antonio, Pasig" />
+                  <input required value={dAddress} onChange={e => setDAddress(e.target.value)} placeholder="e.g. Brgy. Lagao, GenSan" />
                 </label>
                 <label>
                   <span>Cylinder Serial & Valve System<b>*</b></span>
-                  <input required value={dSerial} onChange={e => setDSerial(e.target.value)} placeholder="PG-11-004920 · POL" />
+                  <input
+                    required
+                    value={dSerial}
+                    onChange={e => setDSerial(e.target.value)}
+                    placeholder="SG-11-004920 · POL"
+                    style={dSerialCheck.isQuarantined ? { borderColor: '#ef4444', background: '#fdf2f2', color: '#b91c1c', fontWeight: 'bold' } : {}}
+                  />
                 </label>
                 <label>
                   <span>Assigned Driver / Rider<b>*</b></span>
@@ -2730,9 +4005,42 @@ function DispatchSettlement() {
                   </select>
                 </label>
               </div>
+
+              {dSerialCheck.isQuarantined ? (
+                <div className="quarantine-stop-alert" style={{ margin: '14px 0 6px 0' }}>
+                  <Icon name="close" size={16} />
+                  <div>
+                    <strong>⛔ CANNOT DISPATCH: Cylinder is Quarantined</strong>
+                    <span>{dSerialCheck.reason}</span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, margin: '10px 0 4px 0', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: '#71839c' }}>Try quick test:</span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ height: 24, fontSize: 11, padding: '0 8px' }}
+                    onClick={() => setDSerial('SG-11-004920 · POL')}
+                  >
+                    ✓ Good Tank (SG-11-004920)
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ height: 24, fontSize: 11, padding: '0 8px', color: '#c64a50' }}
+                    onClick={() => setDSerial('SG-11-007731 · POL')}
+                  >
+                    ⚠ Quarantined Tank (SG-11-007731)
+                  </button>
+                </div>
+              )}
+
               <div className="modal-actions">
                 <Button variant="secondary" onClick={() => setNewDispatchModal(false)}>Cancel</Button>
-                <Button type="submit">Dispatch Trip</Button>
+                <Button type="submit" disabled={dSerialCheck.isQuarantined}>
+                  {dSerialCheck.isQuarantined ? 'Blocked: Quarantined Tank' : 'Dispatch Trip'}
+                </Button>
               </div>
             </form>
           </div>
@@ -2842,24 +4150,26 @@ function DispatchSettlement() {
 
 function OperationalExpenses() {
   const initialExpenses = [
-    ['EV-2026-0812', 'Oct 16 · 11:42 AM', 'Fuel', 'Shell fuel · Tricycle #03', '₱1,500.00', 'ST001', 'Receipt-0812.jpg', 'Approved'],
-    ['EV-2026-0811', 'Oct 16 · 10:15 AM', 'Salaries & Allowances', 'Driver cash allowance', '₱1,200.00', 'ST001', 'Voucher signed', 'Approved'],
-    ['EV-2026-0810', 'Oct 16 · 09:28 AM', 'Utilities', 'Maynilad water bill', '₱480.00', 'ST002', 'Receipt-0810.pdf', 'Approved'],
-    ['EV-2026-0809', 'Oct 16 · 08:30 AM', 'Maintenance', 'Replacement valve O-rings', '₱500.00', 'ST002', 'Receipt-0809.jpg', 'Approved'],
+    ['EV-2026-0812', 'Oct 16 · 11:42 AM', 'Fuel', 'Shell fuel refill · Delivery Tricycle #03', '₱1,500.00', 'ST001', 'Receipt-0812.jpg', 'Approved'],
+    ['EV-2026-0811', 'Oct 16 · 10:15 AM', 'Salaries & Allowances', 'Driver daily cash meal allowance (ST003 Mark Ramos)', '₱1,200.00', 'ST001', 'Voucher-signed.pdf', 'Approved'],
+    ['EV-2026-0810', 'Oct 16 · 09:28 AM', 'Utilities', 'GenSan Maynilad / water utility bill (Warehouse)', '₱480.00', 'ST002', 'Receipt-0810.pdf', 'Approved'],
+    ['EV-2026-0809', 'Oct 16 · 08:30 AM', 'Maintenance', 'Replacement POL valve O-rings & Teflon rolls (5 units)', '₱500.00', 'ST002', 'Receipt-0809.jpg', 'Approved'],
   ]
 
   const categories = ['Cost of LPG', 'Loan Interest', 'Fuel', 'Salaries & Allowances', 'Rent', 'Utilities', 'Maintenance', 'Others']
 
   const [expenses, setExpenses] = useState(initialExpenses)
   const [selectedCat, setSelectedCat] = useState('All')
+  const [search, setSearch] = useState('')
   const [newExpenseModal, setNewExpenseModal] = useState(false)
+  const [selectedVoucher, setSelectedVoucher] = useState<string[] | null>(null)
   const [toast, setToast] = useState('')
 
   // Expense form
   const [eCat, setECat] = useState('Fuel')
   const [eDesc, setEDesc] = useState('')
   const [eAmt, setEAmt] = useState('500')
-  const [eStaff, setEStaff] = useState('ST001')
+  const [eStaff, setEStaff] = useState('ST001 · Paolo Mendoza')
   const [eReceipt, setEReceipt] = useState('Receipt-manual.jpg')
 
   function showToast(msg: string) {
@@ -2871,13 +4181,14 @@ function OperationalExpenses() {
     e.preventDefault()
     const amt = parseFloat(eAmt) || 0
     const newId = `EV-2026-${0 + 813 + expenses.length}`
+    const staffCode = eStaff.split('·')[0].trim()
     const newRow = [
       newId,
       'Oct 16 · Just now',
       eCat,
       eDesc,
       `₱${amt.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
-      eStaff,
+      staffCode,
       eReceipt,
       'Approved',
     ]
@@ -2889,8 +4200,12 @@ function OperationalExpenses() {
   }
 
   const filteredExpenses = useMemo(() => {
-    return expenses.filter(e => selectedCat === 'All' || e[2] === selectedCat)
-  }, [expenses, selectedCat])
+    return expenses.filter(e => {
+      const matchCat = selectedCat === 'All' || e[2] === selectedCat
+      const matchSearch = e.join(' ').toLowerCase().includes(search.toLowerCase())
+      return matchCat && matchSearch
+    })
+  }, [expenses, selectedCat, search])
 
   const todayTotal = useMemo(() => {
     return expenses.reduce((acc, row) => {
@@ -2953,51 +4268,181 @@ function OperationalExpenses() {
         </div>
       )}
 
+      {/* View Voucher Modal */}
+      {selectedVoucher && (
+        <div className="modal-backdrop" onMouseDown={() => setSelectedVoucher(null)}>
+          <div className="modal" onMouseDown={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <h2>Expense Voucher Details</h2>
+                <p>Reference: {selectedVoucher[0]} · Station Operating Fund</p>
+              </div>
+              <button onClick={() => setSelectedVoucher(null)}><Icon name="close"/></button>
+            </div>
+            <div className="detail-list">
+              <div><span>Voucher Number</span><strong className="cell-mono">{selectedVoucher[0]}</strong></div>
+              <div><span>Date & Time</span><strong>{selectedVoucher[1]}</strong></div>
+              <div><span>Expense Category</span><Badge>{selectedVoucher[2]}</Badge></div>
+              <div><span>Disbursed Amount</span><strong style={{ color: '#c64a50', fontSize: 16 }}>{selectedVoucher[4]}</strong></div>
+              <div><span>Authorizing Staff</span><strong>{selectedVoucher[5]}</strong></div>
+              <div><span>Receipt Attachment</span><strong className="cell-mono" style={{ color: '#1877c9' }}>{selectedVoucher[6]}</strong></div>
+              <div><span>Approval Status</span><StatusChip tone="ok">{selectedVoucher[7]}</StatusChip></div>
+              <div style={{ marginTop: 8, padding: '10px 14px', background: '#f8fafc', borderRadius: 6, fontSize: 13, border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Description & Operational Context:</span>
+                <strong>{selectedVoucher[3]}</strong>
+              </div>
+              <div className="modal-actions">
+                <Button variant="secondary" icon="file" onClick={() => { showToast(`Printed Voucher ${selectedVoucher[0]}`); setSelectedVoucher(null); }}>
+                  Print Voucher
+                </Button>
+                <Button onClick={() => setSelectedVoucher(null)}>Close</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pattern 1: Page Header ── */}
       <MasterHeader
         title="Operational Expenses"
         subtitle="Record daily operational disbursements with required expense categories and receipt attachments."
-        actions={<Button icon="plus" onClick={() => setNewExpenseModal(true)}>New Expense Voucher</Button>}
+        actions={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button
+              variant="secondary"
+              icon="download"
+              onClick={() => showToast('Expense ledger exported: Expenses_Oct16_2026.xlsx')}
+            >
+              Export Ledger
+            </Button>
+            <Button icon="plus" onClick={() => setNewExpenseModal(true)}>New Expense Voucher</Button>
+          </div>
+        }
       />
 
-      <div className="category-grid">
-        {categories.map((x, i) => (
-          <button
-            key={x}
-            className={selectedCat === x ? 'active' : ''}
-            onClick={() => setSelectedCat(selectedCat === x ? 'All' : x)}
-          >
-            <span><Icon name={i === 2 ? 'truck' : i === 6 ? 'settings' : i === 3 ? 'users' : 'receipt'}/></span>
-            <b>{x}</b>
-            <small>{['Supplier refills', 'Financing costs', 'Delivery vehicles', 'Drivers, staff, kargador', 'Yard and store lease', 'Power and water', 'Repairs and valves', 'Petty cash'][i]}</small>
-          </button>
-        ))}
-      </div>
+      {/* ── Pattern 2: Stat Strip (One surface, equal cells, hairline dividers) ── */}
+      <StatStrip
+        stats={[
+          {
+            label: "Today's Cash Outflow",
+            value: `₱${todayTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+            sub: 'Petty cash & driver vouchers',
+            status: 'info',
+          },
+          {
+            label: 'Approved Vouchers',
+            value: `${expenses.length} Vouchers`,
+            sub: 'Audited & signed today',
+            status: 'ok',
+          },
+          {
+            label: 'Highest Disbursement',
+            value: 'Fuel (41%)',
+            sub: '₱1,500.00 for Delivery Tricycle #03',
+            status: 'warning',
+          },
+          {
+            label: 'Active Disbursing Staff',
+            value: '2 Cashiers',
+            sub: 'ST001 Paolo, ST002 Leah on shift',
+            status: 'neutral',
+          },
+        ]}
+      />
 
+      {/* ── Pattern 5: Table with Fixed Column Spec ── */}
       <Card className="records-card master-table">
-        <CardTitle
-          icon="receipt"
-          title={selectedCat === 'All' ? 'All Expense Vouchers' : `${selectedCat} Expenses`}
-          action={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {selectedCat !== 'All' && (
-                <Button variant="ghost" onClick={() => setSelectedCat('All')}>Clear Filter</Button>
-              )}
-              <span className="card-total">
-                Today · ₱{todayTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-              </span>
-            </div>
-          }
-        />
-        <DataTable
-          columns={['Voucher #', 'Date & Time', 'Category', 'Description', 'Amount (₱)', 'Staff Code', 'Receipt Attached', 'Status']}
-          rows={filteredExpenses}
-        />
+        {/* Pattern 4: Toolbar (36px controls, search takes free space) */}
+        <div className="toolbar">
+          <SearchField value={search} onChange={setSearch} placeholder="Search voucher #, description, staff, or receipt..." />
+          <select
+            value={selectedCat}
+            onChange={e => setSelectedCat(e.target.value)}
+            style={{ width: 190, height: 36 }}
+          >
+            <option value="All">All Categories ({expenses.length})</option>
+            {categories.map(c => {
+              const count = expenses.filter(x => x[2] === c).length
+              return <option key={c} value={c}>{c} ({count})</option>
+            })}
+          </select>
+          {selectedCat !== 'All' && (
+            <Button variant="ghost" onClick={() => setSelectedCat('All')}>Clear Filter</Button>
+          )}
+        </div>
+
+        <div className="ops-table-wrap">
+          <table className="ops-table-fixed">
+            <colgroup>
+              <col style={{ width: '140px' }} />
+              <col style={{ width: '160px' }} />
+              <col style={{ width: '170px' }} />
+              <col /> {/* flexible: description */}
+              <col style={{ width: '110px' }} />
+              <col style={{ width: '160px' }} />
+              <col style={{ width: '130px' }} />
+              <col style={{ width: '110px' }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th className="text-left">Voucher #</th>
+                <th className="text-left">Date & Time</th>
+                <th className="text-left">Category</th>
+                <th className="text-left">Description / Reason</th>
+                <th className="text-left">Staff Code</th>
+                <th className="text-left">Receipt Attached</th>
+                <th className="text-right">Amount</th>
+                <th className="text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredExpenses.map((row) => (
+                <tr
+                  key={row[0]}
+                  onClick={() => setSelectedVoucher(row)}
+                  className="clickable"
+                >
+                  <td className="cell-mono" style={{ color: '#1877c9', fontWeight: 600 }}>{row[0]}</td>
+                  <td style={{ color: '#64748b', fontSize: 13 }}>{row[1]}</td>
+                  <td>
+                    <Badge>{row[2]}</Badge>
+                  </td>
+                  <td className="cell-truncate" title={row[3]}>
+                    <strong style={{ color: '#0f172a' }}>{row[3]}</strong>
+                  </td>
+                  <td>
+                    <span className="cell-mono">{row[5]}</span>
+                  </td>
+                  <td className="cell-truncate cell-mono" style={{ color: '#64748b', fontSize: 12 }} title={row[6]}>
+                    {row[6]}
+                  </td>
+                  <td className="text-right tabular-nums">
+                    <strong style={{ color: '#c64a50' }}>{row[4]}</strong>
+                  </td>
+                  <td>
+                    <StatusChip tone="ok">{row[7]}</StatusChip>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="pagination">
+          <span>Showing {filteredExpenses.length} of {expenses.length} expense records · Today's Total: ₱{todayTotal.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+          <div>
+            <button disabled>‹</button>
+            <button className="current">1</button>
+            <button disabled>›</button>
+          </div>
+        </div>
       </Card>
     </div>
   )
 }
 
 function DailyClosingEOD() {
+  const { settings } = useStationSettings()
   const [mode, setMode] = useState<'denom' | 'manual'>('denom')
   const [denoms, setDenoms] = useState<{ [key: string]: number }>({
     1000: 20, // ₱20,000
@@ -3011,12 +4456,14 @@ function DailyClosingEOD() {
   const [manualCash, setManualCash] = useState('30620.00')
   const [varianceReason, setVarianceReason] = useState('change')
   const [varianceNotes, setVarianceNotes] = useState('Rider Junjun had ₱50 short change during emergency rush delivery at Brgy. Rosario.')
-  const [ownerPin, setOwnerPin] = useState('4829')
+  const [ownerPin, setOwnerPin] = useState(settings.closingPin)
   const [finalized, setFinalized] = useState(false)
   const [toast, setToast] = useState('')
   const [showZReading, setShowZReading] = useState(false)
   const [checklistState, setChecklistState] = useState<boolean[]>([true, true, true, true, true, true])
+  const [eodTab, setEodTab] = useState('1. Cash & Denominations')
 
+  const morningFloat = parseFloat(settings.morningFloat) || 5000
   const expectedCash = 30670.00
 
   // Compute counted cash from denomination sheet or manual entry
@@ -3030,7 +4477,7 @@ function DailyClosingEOD() {
 
   const counted = mode === 'denom' ? denomSum : (parseFloat(manualCash) || 0)
   const variance = counted - expectedCash
-  const netTurnover = Math.max(0, counted - 5000) // Less ₱5,000 opening float for tomorrow
+  const netTurnover = Math.max(0, counted - morningFloat) // Less configured morning float for tomorrow
   const checksCompleted = checklistState.filter(Boolean).length
 
   function updateDenom(key: string, delta: number) {
@@ -3076,8 +4523,8 @@ function DailyClosingEOD() {
   }
 
   function handleFinalize() {
-    if (ownerPin !== '4829') {
-      setToast('Invalid Owner PIN! Default authorization code is 4829.')
+    if (ownerPin !== settings.closingPin) {
+      setToast(`Invalid Owner PIN! Configured authorization code is ${settings.closingPin}.`)
       setTimeout(() => setToast(''), 2800)
       return
     }
@@ -3096,16 +4543,16 @@ function DailyClosingEOD() {
     'Physical cash drawer & coin denomination sheet verified',
     'Customer credit collection receipts matched with Suki passbooks',
     'Petty cash disbursements & rider fuel vouchers audited',
-    'Yard full cylinder inventory physically counted by SKU & valve',
+    'Yard SEAGAS full cylinder inventory physically counted by SKU & valve',
     'Empty palit-basyo returns balanced against delivery trip manifests',
     'Quarantine cage (dented, rusty, or requal cylinders) locked'
   ]
 
   const cylinderTally = [
-    { sku: '11kg Petron Gasul (POL)', valve: 'POL Standard', begF: 140, inF: 50, outF: 40, endF: 150, physF: 150, begE: 30, inE: 40, outE: 30, endE: 40, physE: 40 },
-    { sku: '11kg Solane Compact', valve: 'Compact 20mm', begF: 128, inF: 20, outF: 22, endF: 126, physF: 126, begE: 42, inE: 22, outE: 20, endE: 44, physE: 44 },
-    { sku: '11kg Phoenix Super LPG', valve: 'SNP Auto-Lock', begF: 96, inF: 0, outF: 15, endF: 81, physF: 81, begE: 28, inE: 15, outE: 10, endE: 33, physE: 33 },
-    { sku: '50kg Industrial Gasul', valve: 'POL Heavy', begF: 64, inF: 10, outF: 3, endF: 71, physF: 71, begE: 63, inE: 3, outE: 20, endE: 46, physE: 46 },
+    { sku: '11kg SEAGAS POL Standard', valve: 'POL Threaded', begF: 140, inF: 50, outF: 40, endF: 150, physF: 150, begE: 30, inE: 40, outE: 30, endE: 40, physE: 40 },
+    { sku: '11kg SEAGAS Snap-On', valve: 'Compact 20mm', begF: 128, inF: 20, outF: 22, endF: 126, physF: 126, begE: 42, inE: 22, outE: 20, endE: 44, physE: 44 },
+    { sku: '50kg SEAGAS Industrial Heavy', valve: 'POL Heavy (SRV)', begF: 64, inF: 10, outF: 3, endF: 71, physF: 71, begE: 63, inE: 3, outE: 20, endE: 46, physE: 46 },
+    { sku: '2.7kg SEAGAS Camping Tank', valve: 'Compact Camping', begF: 96, inF: 0, outF: 15, endF: 81, physF: 81, begE: 28, inE: 15, outE: 10, endE: 33, physE: 33 },
   ]
 
   return (
@@ -3114,7 +4561,7 @@ function DailyClosingEOD() {
 
       {/* Master Header */}
       <MasterHeader
-        title="Daily Closing & Reconciliation (EOD)"
+        title="Daily Closing & Cash Reconciliation (EOD)"
         subtitle="End-of-day register balancing, physical cash denomination tally, yard cylinder reconciliation, and owner Z-Reading sign-off."
         actions={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -3136,7 +4583,7 @@ function DailyClosingEOD() {
         <div className="eod-banner locked">
           <div>
             <strong>✓ Shift Finalized & Register Locked at 7:45 PM</strong>
-            <span>Authorized by Dexter Espiritu (Owner PIN: 4829) · Net cash turnover of ₱{netTurnover.toLocaleString('en-PH', { minimumFractionDigits: 2 })} transferred to main office safe.</span>
+            <span>Authorized by Dexter Mendoza (Owner PIN: 4829) · Remittance / Cash Drop of ₱{netTurnover.toLocaleString('en-PH', { minimumFractionDigits: 2 })} transferred to main office safe.</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <Button variant="ghost" onClick={() => setShowZReading(true)}>
@@ -3148,8 +4595,8 @@ function DailyClosingEOD() {
       ) : (
         <div className="eod-banner">
           <div>
-            <strong>End-of-Day Shift Audit in Progress</strong>
-            <span>Count physical bills & coins, verify yard cylinder basyo counts, and obtain Owner Dexter sign-off before closing register.</span>
+            <strong>End-of-Day Shift Audit in Progress — GenSan Terminal</strong>
+            <span>Count physical bills & coins, verify physical yard cylinder basyo counts, and obtain Owner Dexter sign-off before closing register.</span>
           </div>
           <Button variant="ghost" onClick={handleQuickMatch}>
             Quick Match Exact (₱30,670)
@@ -3157,57 +4604,80 @@ function DailyClosingEOD() {
         </div>
       )}
 
-      {/* Top 4 KPI Metrics */}
-      <div className="eod-kpis">
-        <Card>
-          <span>Expected Cash Till</span>
-          <strong>₱{expectedCash.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
-          <small>Float ₱5k + Sales ₱24.8k + Coll ₱4.5k − Exp ₱3.68k</small>
-        </Card>
+      {/* EOD Stat Strip (Ops Data Layout — One surface, hairline divided) */}
+      <StatStrip
+        stats={[
+          {
+            label: 'Expected Ending Drawer',
+            value: `₱${expectedCash.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+            sub: 'Beg. ₱5k + Sales ₱24.8k + Coll ₱4.5k − Exp ₱3.68k',
+          },
+          {
+            label: 'Actual Physical Cash Counted',
+            value: `₱${counted.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+            sub: mode === 'denom' ? 'Live sum of 6 bills + coins' : 'Manual cash drawer entry',
+            status: variance === 0 ? 'ok' : variance < 0 ? 'danger' : 'warning',
+          },
+          {
+            label: 'Short / Over Variance',
+            value: variance === 0 ? '₱0.00' : variance < 0 ? `-₱${Math.abs(variance).toFixed(2)}` : `+₱${variance.toFixed(2)}`,
+            sub: variance === 0 ? '✓ Balanced (Exact Match)' : variance < 0 ? '⚠ Shortage Variance' : '⚠ Overage Variance',
+            status: variance === 0 ? 'ok' : variance < 0 ? 'danger' : 'warning',
+          },
+          {
+            label: 'Physical Yard Tally',
+            value: '591 Cylinders',
+            sub: '428 Full + 163 Basyo · 0 Missing',
+            status: 'ok',
+          },
+        ]}
+      />
 
-        <Card>
-          <span>Actual Physical Cash Counted</span>
-          <strong style={{ color: variance === 0 ? '#078a76' : variance < 0 ? '#c64a50' : '#b76307' }}>
-            ₱{counted.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-          </strong>
-          <small>{mode === 'denom' ? 'Live sum of 6 bill types + coins' : 'Manual cash drawer entry'}</small>
-        </Card>
+      {/* Modern Stepper Workflow Navigation */}
+      <nav className="eod-stepper-header" aria-label="End-of-day closing steps">
+        {[
+          { id: '1. Cash & Denominations', step: '1', title: 'Cash Drawer', desc: 'Denominations & variance' },
+          { id: '2. Yard Fleet Tally', step: '2', title: 'Yard Fleet', desc: 'Full vs empty basyo' },
+          { id: '3. EOD Checklist', step: '3', title: 'Closing Checklist', desc: 'Safety & compliance' },
+          { id: '4. Owner Remittance & Z-Reading', step: '4', title: 'Owner Remittance', desc: 'Safe drop & Z-Reading' },
+        ].map(s => {
+          const isActive = eodTab === s.id
+          const isDone = (s.step === '1' && variance === 0) || (s.step === '2') || (s.step === '3' && checksCompleted === 6) || (s.step === '4' && finalized)
+          return (
+            <button
+              key={s.id}
+              type="button"
+              className={`eod-step-pill ${isActive ? 'active' : ''} ${isDone ? 'completed' : ''}`}
+              onClick={() => setEodTab(s.id)}
+            >
+              <div className="eod-step-badge">{isDone && !isActive ? '✓' : s.step}</div>
+              <div className="eod-step-meta">
+                <span className="eod-step-title">{s.title}</span>
+                <span className="eod-step-desc">{s.desc}</span>
+              </div>
+            </button>
+          )
+        })}
+      </nav>
 
-        <Card>
-          <span>Day-End Till Variance</span>
-          <strong style={{ color: variance === 0 ? '#078a76' : variance < 0 ? '#c64a50' : '#b76307' }}>
-            {variance === 0 ? '₱0.00' : variance < 0 ? `-₱${Math.abs(variance).toFixed(2)}` : `+₱${variance.toFixed(2)}`}
-          </strong>
-          <span className={`kpi-tag ${variance === 0 ? 'balanced' : variance < 0 ? 'shortage' : 'overage'}`}>
-            {variance === 0 ? '✓ 100% Balanced' : variance < 0 ? '⚠ Cash Shortage' : '⚠ Cash Overage'}
-          </span>
-        </Card>
-
-        <Card>
-          <span>Yard Cylinders Balanced</span>
-          <strong style={{ color: '#078a76' }}>591 Units</strong>
-          <small>428 Full Tanks + 163 Empty Basyo · 0 Missing</small>
-        </Card>
-      </div>
-
-      {/* Main Two-Column Layout */}
-      <div className="eod-grid">
-        {/* Left Column: Cash Drawer Reconciliation & Denomination Sheet */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Card 1: Visual Cash Formula Audit Trail */}
+      {/* ── TAB 1: CASH & DENOMINATIONS ── */}
+      {eodTab === '1. Cash & Denominations' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Visual Cash Formula Audit Trail */}
           <Card>
             <CardTitle
               icon="coins"
-              title="Cash Drawer Reconciliation Formula"
+              title="Cash Drawer Balancing Formula"
+              subtitle="Auditable formula reconciling beginning float, today's POS sales inflows, Suki credit collections, and petty cash disbursements"
               action={<Badge>{variance === 0 ? 'Exact Match' : variance < 0 ? 'Shortage Alert' : 'Overage Alert'}</Badge>}
             />
             <div className="formula-strip">
               <div className="formula-item">
-                <span>Opening Cash Float</span>
+                <span>Beginning Cash Float</span>
                 <strong>₱5,000.00</strong>
               </div>
               <div className="formula-item">
-                <span>+ Cash POS Sales</span>
+                <span>+ Cash Inflows (POS)</span>
                 <strong>₱24,850.00</strong>
               </div>
               <div className="formula-item">
@@ -3215,240 +4685,313 @@ function DailyClosingEOD() {
                 <strong>₱4,500.00</strong>
               </div>
               <div className="formula-item">
-                <span>− Disbursed Expenses</span>
+                <span>− Daily Expenses</span>
                 <strong style={{ color: '#b23942' }}>₱3,680.00</strong>
               </div>
               <div className="formula-item expected">
-                <span>= Expected Cash Till</span>
+                <span>= Expected Ending Drawer</span>
                 <strong>₱{expectedCash.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
               </div>
             </div>
+          </Card>
 
-            {/* Denomination Counter Header */}
-            <div className="denom-header">
-              <div>
-                <strong style={{ fontSize: 14, color: '#112849' }}>Physical Cash Count Sheet</strong>
-                <p style={{ fontSize: 12, color: '#71839c', margin: '3px 0 0' }}>
-                  Itemize physical bills and coins currently in the store cash drawer
-                </p>
+          {/* Side-by-Side: Cash Count Sheet (Left) vs. Variance & Discrepancy Protocol (Right) */}
+          <div className="eod-cash-layout">
+            {/* Left: Denomination Sheet */}
+            <Card>
+              <div className="denom-header">
+                <div>
+                  <strong style={{ fontSize: 14, color: '#112849' }}>Physical Cash Count Sheet</strong>
+                  <p style={{ fontSize: 12, color: '#71839c', margin: '3px 0 0' }}>
+                    Itemize physical bills and coins currently in the store cash drawer
+                  </p>
+                </div>
+                <div className="denom-switch">
+                  <button
+                    type="button"
+                    className={mode === 'denom' ? 'active' : ''}
+                    onClick={() => setMode('denom')}
+                  >
+                    Denominations
+                  </button>
+                  <button
+                    type="button"
+                    className={mode === 'manual' ? 'active' : ''}
+                    onClick={() => setMode('manual')}
+                  >
+                    Direct Flat Total
+                  </button>
+                </div>
               </div>
-              <div className="denom-switch">
-                <button
-                  className={mode === 'denom' ? 'active' : ''}
-                  onClick={() => setMode('denom')}
-                >
-                  Denominations (Bills & Coins)
-                </button>
-                <button
-                  className={mode === 'manual' ? 'active' : ''}
-                  onClick={() => setMode('manual')}
-                >
-                  Direct Flat Total
-                </button>
-              </div>
-            </div>
 
-            {/* Denomination Input Table */}
-            {mode === 'denom' ? (
-              <div>
-                <div className="denom-table-wrap">
-                  <table className="denom-table">
-                    <thead>
-                      <tr>
-                        <th>Denomination</th>
-                        <th style={{ width: 140 }}>Quantity (Pcs)</th>
-                        <th style={{ textAlign: 'right' }}>Subtotal (₱)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[
-                        { key: '1000', label: '₱1,000 Bill', class: 'p1000', mult: 1000 },
-                        { key: '500', label: '₱500 Bill', class: 'p500', mult: 500 },
-                        { key: '200', label: '₱200 Bill', class: 'p200', mult: 200 },
-                        { key: '100', label: '₱100 Bill', class: 'p100', mult: 100 },
-                        { key: '50', label: '₱50 Bill', class: 'p50', mult: 50 },
-                        { key: '20', label: '₱20 Bill', class: 'p20', mult: 20 },
-                      ].map(d => (
-                        <tr key={d.key}>
+              {mode === 'denom' ? (
+                <div>
+                  <div className="denom-table-wrap" style={{ overflowX: 'auto', padding: 0 }}>
+                    <table className="denom-compact-table">
+                      <thead>
+                        <tr>
+                          <th className="text-left" style={{ width: '38%' }}>Denomination</th>
+                          <th className="text-center" style={{ width: '32%' }}>Quantity (Pcs)</th>
+                          <th className="text-right" style={{ width: '30%' }}>Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { key: '1000', label: '₱1,000 Bill', class: 'p1000', mult: 1000 },
+                          { key: '500', label: '₱500 Bill', class: 'p500', mult: 500 },
+                          { key: '200', label: '₱200 Bill', class: 'p200', mult: 200 },
+                          { key: '100', label: '₱100 Bill', class: 'p100', mult: 100 },
+                          { key: '50', label: '₱50 Bill', class: 'p50', mult: 50 },
+                          { key: '20', label: '₱20 Bill', class: 'p20', mult: 20 },
+                        ].map(d => (
+                          <tr key={d.key}>
+                            <td>
+                              <span className={`denom-pill ${d.class}`}>{d.label}</span>
+                            </td>
+                            <td className="text-center">
+                              <div className="denom-stepper" style={{ justifyContent: 'center' }}>
+                                <button
+                                  type="button"
+                                  className="denom-btn"
+                                  disabled={finalized}
+                                  onClick={() => updateDenom(d.key, -1)}
+                                  aria-label={`Decrease ${d.label}`}
+                                >
+                                  −
+                                </button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  className="denom-qty-input tabular-nums"
+                                  disabled={finalized}
+                                  value={denoms[d.key] ?? 0}
+                                  onChange={(e) => setDenomQty(d.key, e.target.value)}
+                                />
+                                <button
+                                  type="button"
+                                  className="denom-btn"
+                                  disabled={finalized}
+                                  onClick={() => updateDenom(d.key, 1)}
+                                  aria-label={`Increase ${d.label}`}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+                            <td className="text-right tabular-nums denom-subtotal">
+                              ₱{((denoms[d.key] || 0) * d.mult).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr>
                           <td>
-                            <span className={`denom-pill ${d.class}`}>{d.label}</span>
+                            <span className="denom-pill coin">Coins (₱20, ₱10, ₱5, ₱1, 25¢)</span>
                           </td>
-                          <td>
-                            <div className="denom-stepper">
-                              <button
-                                className="denom-btn"
-                                disabled={finalized}
-                                onClick={() => updateDenom(d.key, -1)}
-                              >
-                                −
-                              </button>
-                              <input
-                                type="number"
-                                min="0"
-                                className="denom-qty-input"
-                                disabled={finalized}
-                                value={denoms[d.key] ?? 0}
-                                onChange={(e) => setDenomQty(d.key, e.target.value)}
-                              />
-                              <button
-                                className="denom-btn"
-                                disabled={finalized}
-                                onClick={() => updateDenom(d.key, 1)}
-                              >
-                                +
-                              </button>
-                            </div>
+                          <td className="text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.25"
+                              className="denom-qty-input tabular-nums"
+                              style={{ width: 90 }}
+                              disabled={finalized}
+                              value={denoms.coins ?? 0}
+                              onChange={(e) => setDenomQty('coins', e.target.value)}
+                            />
                           </td>
-                          <td className="denom-subtotal">
-                            ₱{((denoms[d.key] || 0) * d.mult).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                          <td className="text-right tabular-nums denom-subtotal">
+                            ₱{(denoms.coins || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                           </td>
                         </tr>
-                      ))}
-                      <tr>
-                        <td>
-                          <span className="denom-pill coin">Coins (₱20, ₱10, ₱5, ₱1, 25¢)</span>
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.25"
-                            className="denom-qty-input"
-                            style={{ width: 90 }}
-                            disabled={finalized}
-                            value={denoms.coins ?? 0}
-                            onChange={(e) => setDenomQty('coins', e.target.value)}
-                          />
-                        </td>
-                        <td className="denom-subtotal">
-                          ₱{(denoms.coins || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="denom-total-bar">
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <Button variant="ghost" onClick={handleQuickMatch} disabled={finalized}>
-                      Match Exact (₱30,670)
-                    </Button>
-                    <Button variant="ghost" onClick={handleResetDefaults} disabled={finalized}>
-                      Reset Counts
-                    </Button>
+                      </tbody>
+                    </table>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: 11, color: '#71839c', display: 'block' }}>Total Physical Cash Counted</span>
-                    <strong>₱{denomSum.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+
+                  <div className="denom-total-bar">
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Button variant="ghost" onClick={handleQuickMatch} disabled={finalized}>
+                        Match Exact (₱30,670)
+                      </Button>
+                      <Button variant="ghost" onClick={handleResetDefaults} disabled={finalized}>
+                        Reset Counts
+                      </Button>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: 11, color: '#71839c', display: 'block' }}>Total Physical Cash Counted</span>
+                      <strong className="tabular-nums" style={{ fontSize: 20, color: '#078a76' }}>
+                        ₱{denomSum.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                      </strong>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div style={{ padding: '16px 20px' }}>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#33506c' }}>Direct Cash Till Count (₱)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={manualCash}
-                    disabled={finalized}
-                    onChange={(e) => setManualCash(e.target.value)}
-                    style={{ height: 42, fontSize: 16, fontWeight: 'bold', padding: '0 12px', borderRadius: 8, border: '1px solid #c9d8e5', color: '#0d2b45' }}
-                  />
-                </label>
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  <Button variant="ghost" onClick={() => setManualCash('30670.00')} disabled={finalized}>
-                    Exact Expected (₱30,670.00)
-                  </Button>
-                  <Button variant="ghost" onClick={() => setManualCash('30620.00')} disabled={finalized}>
-                    With ₱50 Shortage (₱30,620.00)
-                  </Button>
+              ) : (
+                <div style={{ padding: '20px' }}>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#33506c' }}>Direct Cash Till Count (₱)</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={manualCash}
+                      disabled={finalized}
+                      onChange={(e) => setManualCash(e.target.value)}
+                      style={{ height: 42, fontSize: 16, fontWeight: 'bold', padding: '0 12px', borderRadius: 8, border: '1px solid #c9d8e5', color: '#0d2b45' }}
+                    />
+                  </label>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <Button variant="ghost" onClick={() => setManualCash('30670.00')} disabled={finalized}>
+                      Exact Expected (₱30,670.00)
+                    </Button>
+                    <Button variant="ghost" onClick={() => setManualCash('30620.00')} disabled={finalized}>
+                      With ₱50 Shortage (₱30,620.00)
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </Card>
 
-            {/* Variance Highlight Box */}
-            <div className={`variance-card ${variance === 0 ? 'balanced' : variance < 0 ? 'shortage' : 'overage'}`}>
-              <div>
-                <strong style={{ fontSize: 14, display: 'block' }}>
-                  {variance === 0 ? '✓ Perfect Reconciliation (No Discrepancy)' : variance < 0 ? '⚠ Cash Drawer Shortage' : '⚠ Cash Drawer Overage'}
-                </strong>
-                <span style={{ fontSize: 12, opacity: 0.9 }}>
-                  {variance === 0
-                    ? 'Physical cash drawer matches the expected formula till 100%.'
-                    : variance < 0
-                    ? `Physical count is ₱${Math.abs(variance).toFixed(2)} less than the expected system amount.`
-                    : `Physical count has ₱${variance.toFixed(2)} surplus cash above the expected amount.`}
-                </span>
-              </div>
-              <strong style={{ fontSize: 20 }}>
-                {variance === 0 ? '₱0.00' : variance < 0 ? `-₱${Math.abs(variance).toFixed(2)}` : `+₱${variance.toFixed(2)}`}
-              </strong>
+            {/* Right: Variance Analysis & Mandatory Discrepancy Protocol */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <Card>
+                <CardTitle
+                  icon="coins"
+                  title="Cash Till Variance Status"
+                  subtitle="Live comparison between expected ending drawer and actual physical count"
+                />
+                <div className={`variance-card ${variance === 0 ? 'balanced' : variance < 0 ? 'shortage' : 'overage'}`} style={{ margin: '14px 18px' }}>
+                  <div>
+                    <strong style={{ fontSize: 14, display: 'block' }}>
+                      {variance === 0 ? '✓ Perfect Cash Balancing (0 Discrepancy)' : variance < 0 ? '⚠ Cash Drawer Shortage' : '⚠ Cash Drawer Overage'}
+                    </strong>
+                    <span style={{ fontSize: 12, opacity: 0.9 }}>
+                      {variance === 0
+                        ? 'Physical cash drawer matches the expected formula till 100%.'
+                        : variance < 0
+                        ? `Physical count is ₱${Math.abs(variance).toFixed(2)} less than the expected system amount.`
+                        : `Physical count has ₱${variance.toFixed(2)} surplus cash above the expected amount.`}
+                    </span>
+                  </div>
+                  <strong style={{ fontSize: 22 }} className="tabular-nums">
+                    {variance === 0 ? '₱0.00' : variance < 0 ? `-₱${Math.abs(variance).toFixed(2)}` : `+₱${variance.toFixed(2)}`}
+                  </strong>
+                </div>
+
+                {variance !== 0 ? (
+                  <div className="discrepancy-box">
+                    <span className="field-label" style={{ color: '#b13840' }}>
+                      Mandatory Discrepancy Audit Log (Required by Station Policy)
+                    </span>
+                    <label>
+                      <span style={{ fontSize: 12, color: '#71839c' }}>Reason Code</span>
+                      <select
+                        value={varianceReason}
+                        disabled={finalized}
+                        onChange={(e) => setVarianceReason(e.target.value)}
+                        style={{ height: 36 }}
+                      >
+                        <option value="change">Rapid Street Change Discrepancy (Rider gave loose change to suki)</option>
+                        <option value="advance">Unrecorded Rider Fuel Advance (Gasoline receipt pending from rider)</option>
+                        <option value="swap">Unlogged Ariglo / Valve Swap Surcharge Rounding</option>
+                        <option value="other">Pre-authorized by Owner Dexter (Remarks logged)</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span style={{ fontSize: 12, color: '#71839c' }}>Cashier Explanatory Remarks</span>
+                      <textarea
+                        rows={3}
+                        value={varianceNotes}
+                        disabled={finalized}
+                        onChange={(e) => setVarianceNotes(e.target.value)}
+                        placeholder="Enter details explaining the variance..."
+                      />
+                    </label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                      <span style={{ fontSize: 11, color: '#71839c' }}>
+                        Closing Cashier: Christopher Jude Ramos · ID #EMP-004
+                      </span>
+                      <span style={{ fontSize: 11, color: '#b13840', fontWeight: 600 }}>
+                        Shortage recorded to audit trail
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: '16px 20px', color: '#078a76', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, background: '#f0fdfa', borderTop: '1px solid #ccfbf1' }}>
+                    <span style={{ fontSize: 18 }}>✓</span> Cash drawer is completely balanced. No discrepancy logging required.
+                  </div>
+                )}
+              </Card>
+
+              {/* Station Context */}
+              <Card>
+                <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>Closing Shift Operator</span>
+                    <strong style={{ color: '#0f172a' }}>Christopher Jude Ramos (EMP-004)</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>Store Terminal</span>
+                    <strong style={{ color: '#0f172a' }}>REG-01 (Store Front POS)</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: '#64748b' }}>Shift Operating Hours</span>
+                    <span style={{ color: '#334155', fontWeight: 600 }}>07:00 AM – 07:30 PM (Shift #1)</span>
+                  </div>
+                </div>
+              </Card>
             </div>
+          </div>
 
-            {/* Mandatory Discrepancy Protocol */}
-            {variance !== 0 ? (
-              <div className="discrepancy-box">
-                <span className="field-label" style={{ color: '#b13840' }}>
-                  Mandatory Discrepancy Audit Log (Required by Store Policy)
-                </span>
-                <label>
-                  <span style={{ fontSize: 12, color: '#71839c' }}>Reason Code</span>
-                  <select
-                    value={varianceReason}
-                    disabled={finalized}
-                    onChange={(e) => setVarianceReason(e.target.value)}
-                  >
-                    <option value="change">Rapid Street Change Discrepancy (Rider gave loose change to suki)</option>
-                    <option value="advance">Unrecorded Rider Fuel Advance (Gasoline receipt pending from rider)</option>
-                    <option value="swap">Unlogged Ariglo / Valve Swap Surcharge Rounding</option>
-                    <option value="other">Pre-authorized by Owner Dexter (Remarks logged)</option>
-                  </select>
-                </label>
-                <label>
-                  <span style={{ fontSize: 12, color: '#71839c' }}>Cashier Explanatory Remarks</span>
-                  <textarea
-                    rows={2}
-                    value={varianceNotes}
-                    disabled={finalized}
-                    onChange={(e) => setVarianceNotes(e.target.value)}
-                    placeholder="Enter details explaining the variance..."
-                  />
-                </label>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
-                  <span style={{ fontSize: 11, color: '#71839c' }}>
-                    Closing Cashier: Christopher Jude Espiritu · ID #EMP-004
-                  </span>
-                  <span style={{ fontSize: 11, color: '#b13840', fontWeight: 600 }}>
-                    Shortage will be audited against cashier daily quota
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div style={{ padding: '10px 18px 15px', color: '#078a76', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>✓</span> Cash drawer is fully reconciled. No discrepancy logging required.
-              </div>
-            )}
-          </Card>
+          {/* Step Navigation Bar */}
+          <div className="eod-step-nav">
+            <span style={{ fontSize: 12, color: '#64748b' }}>Step 1 of 4: Cash Drawer Balancing Complete</span>
+            <Button icon="arrow-right" onClick={() => setEodTab('2. Yard Fleet Tally')}>
+              Proceed to Yard Fleet Tally →
+            </Button>
+          </div>
         </div>
+      )}
 
-        {/* Right Column: Yard Cylinder Stock Movement & Owner Sign-Off */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Card 2: Yard Palit-Basyo Cylinder Stock Tally */}
+      {/* ── TAB 2: YARD FLEET TALLY ── */}
+      {eodTab === '2. Yard Fleet Tally' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="compliance-banner">
+            <Icon name="check" />
+            <div>
+              <strong>Shift Physical Yard Reconciliation — SEAGAS Fleet (Oct 16, 2026)</strong>
+              <span>Compare system stock records from POS Palit-Basyo exchanges, delivery dispatch tickets, and supplier receiving against actual physical yard count.</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Badge>591 Units Balanced</Badge>
+              <Badge>0 Missing</Badge>
+            </div>
+          </div>
+
           <Card>
             <CardTitle
               icon="cylinder"
-              title="Physical Yard Cylinder Stock Tally"
+              title="Physical Yard Cylinder Stock Tally (Beginning vs. Ending)"
+              subtitle="Breakdown of physical yard count vs. system ledger by cylinder SKU and valve specification"
               action={<Badge>591 Tanks Balanced</Badge>}
             />
-            <div className="yard-tally">
-              <table>
+            <div className="ops-table-wrap">
+              <table className="ops-table-fixed">
+                <colgroup>
+                  <col style={{ width: '220px' }} />
+                  <col style={{ width: '130px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '110px' }} />
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>SKU / Brand</th>
-                    <th>Full (Sys / Phys)</th>
-                    <th>Empty (Sys / Phys)</th>
-                    <th>Status</th>
+                    <th className="text-left">SKU & Valve Specification</th>
+                    <th className="text-right">Opening (F / E)</th>
+                    <th className="text-right">Supplier In</th>
+                    <th className="text-right">Sold / Disp.</th>
+                    <th className="text-right">Full (Phys / Sys)</th>
+                    <th className="text-right">Empty (Phys / Sys)</th>
+                    <th className="text-center">Tally Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3456,139 +4999,475 @@ function DailyClosingEOD() {
                     <tr key={row.sku}>
                       <td>
                         <strong style={{ display: 'block', color: '#163652' }}>{row.sku}</strong>
-                        <small style={{ color: '#71839c' }}>{row.valve}</small>
+                        <span className="ops-cell-sub">{row.valve}</span>
                       </td>
-                      <td>
-                        <strong>{row.physF}</strong>
-                        <span style={{ color: '#71839c', fontSize: 11 }}> / {row.endF}</span>
+                      <td className="text-right tabular-nums" style={{ color: '#64748b' }}>
+                        {row.begF} F / {row.begE} E
                       </td>
-                      <td>
-                        <strong>{row.physE}</strong>
-                        <span style={{ color: '#71839c', fontSize: 11 }}> / {row.endE}</span>
+                      <td className="text-right tabular-nums" style={{ color: '#078a76', fontWeight: 600 }}>
+                        +{row.inF} F
                       </td>
-                      <td>
-                        <span className="status-pill-ok">✓ Matched</span>
+                      <td className="text-right tabular-nums" style={{ color: '#b23942' }}>
+                        −{row.outF} F
+                      </td>
+                      <td className="text-right tabular-nums">
+                        <strong style={{ color: '#078a76' }}>{row.physF}</strong>
+                        <span style={{ color: '#94a3b8', fontSize: 12 }}> / {row.endF}</span>
+                      </td>
+                      <td className="text-right tabular-nums">
+                        <strong style={{ color: '#1877c9' }}>{row.physE}</strong>
+                        <span style={{ color: '#94a3b8', fontSize: 12 }}> / {row.endE}</span>
+                      </td>
+                      <td className="text-center">
+                        <StatusChip tone="ok">✓ Matched</StatusChip>
                       </td>
                     </tr>
                   ))}
-                  <tr style={{ background: '#f5f9fc', fontWeight: 'bold' }}>
+                  <tr style={{ background: '#f8fafc', fontWeight: 600 }}>
                     <td>Total Yard Inventory</td>
-                    <td style={{ color: '#078a76' }}>428 Full Tanks</td>
-                    <td style={{ color: '#1877c9' }}>163 Empty Basyo</td>
-                    <td>
-                      <span className="status-pill-ok">0 Missing</span>
+                    <td className="text-right tabular-nums" style={{ color: '#64748b' }}>428 F / 163 E</td>
+                    <td className="text-right tabular-nums" style={{ color: '#078a76' }}>+80 F</td>
+                    <td className="text-right tabular-nums" style={{ color: '#b23942' }}>−70 F</td>
+                    <td className="text-right tabular-nums" style={{ color: '#078a76' }}>428 Full</td>
+                    <td className="text-right tabular-nums" style={{ color: '#1877c9' }}>163 Basyo</td>
+                    <td className="text-center">
+                      <StatusChip tone="ok">0 Missing</StatusChip>
                     </td>
                   </tr>
                 </tbody>
               </table>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, padding: '10px 12px', background: '#f4f8fb', borderRadius: 6, fontSize: 12 }}>
-                <span style={{ color: '#59738c' }}>
-                  Quarantine Defective Cage: <strong>4 Tanks</strong> (Dented/Rusty awaiting requalification)
-                </span>
-                <span style={{ color: '#078a76', fontWeight: 600 }}>
-                  Grand Total: 595 Total Store Cylinders
-                </span>
-              </div>
             </div>
           </Card>
 
-          {/* Card 3: EOD Control Checklist & Owner Sign-off */}
+          {/* Supplementary Yard Fleet Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <Card>
+              <CardTitle
+                icon="shield"
+                title="Quarantine Defective Bay (RA 11592)"
+                subtitle="Cylinders locked for inspection, requalification, or scrapping"
+              />
+              <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748b' }}>Quarantined Shells (Dented/Rusty)</span>
+                  <strong style={{ color: '#b76307' }}>4 Tanks</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748b' }}>Hydrostatic 5-Year Requal Status</span>
+                  <StatusChip tone="warning">Awaiting Depot Transfer</StatusChip>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748b' }}>Quarantine Cage Physical Security</span>
+                  <StatusChip tone="ok">✓ Padlocked & Tagged</StatusChip>
+                </div>
+                <div style={{ borderTop: '1px solid #eef2f6', paddingTop: 8, marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#475569', fontWeight: 600 }}>Total Fleet Inventory (Yard + Cage)</span>
+                  <strong style={{ color: '#078a76' }}>595 Tanks Total</strong>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <CardTitle
+                icon="receipt"
+                title="Palit-Basyo Retrieval Audit"
+                subtitle="Balance between outgoing full cylinders and retrieved empty shells"
+              />
+              <div style={{ padding: '14px 20px', display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748b' }}>Full Cylinders Dispatched</span>
+                  <strong style={{ color: '#0f172a' }}>70 Tanks</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748b' }}>Empty Basyo Retrieved</span>
+                  <strong style={{ color: '#078a76' }}>70 Tanks</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748b' }}>Retrieval Balance Ratio</span>
+                  <strong style={{ color: '#078a76' }}>100.0% (Zero Shell Loss)</strong>
+                </div>
+                <div style={{ borderTop: '1px solid #eef2f6', paddingTop: 8, marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#475569', fontWeight: 600 }}>Cylinder Fleet Drift</span>
+                  <StatusChip tone="ok">✓ 0 Drift Detected</StatusChip>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Step Navigation Bar */}
+          <div className="eod-step-nav">
+            <Button variant="secondary" onClick={() => setEodTab('1. Cash & Denominations')}>
+              ← Back to Cash Drawer
+            </Button>
+            <Button icon="arrow-right" onClick={() => setEodTab('3. EOD Checklist')}>
+              Proceed to EOD Checklist →
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 3: EOD CHECKLIST ── */}
+      {eodTab === '3. EOD Checklist' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <Card>
             <CardTitle
               icon="check"
-              title="End-of-Day Checklist & Owner Sign-Off"
-              action={<Badge>{checksCompleted}/6 Completed</Badge>}
+              title="End-of-Day Store Closing & Compliance Checklist"
+              subtitle="Mandatory store verification protocol to be certified by the shift lead before owner safe drop"
+              action={<Badge>{checksCompleted}/6 Checks Completed</Badge>}
             />
 
-            {/* Checklist items */}
-            <div className="eod-checklist">
+            {/* Checklist progress bar */}
+            <div style={{ padding: '0 20px 10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', marginBottom: 6 }}>
+                <span>Closing Protocol Completion Progress</span>
+                <strong style={{ color: checksCompleted === 6 ? '#078a76' : '#b76307' }}>
+                  {Math.round((checksCompleted / 6) * 100)}% Complete ({checksCompleted}/6)
+                </strong>
+              </div>
+              <div style={{ height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${(checksCompleted / 6) * 100}%`,
+                    background: checksCompleted === 6 ? '#078a76' : '#1877c9',
+                    borderRadius: 4,
+                    transition: 'width 0.3s ease',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Interactive Checklist Grid */}
+            <div className="eod-checklist-grid">
               {checklistItems.map((item, index) => {
                 const isChecked = checklistState[index]
                 return (
                   <div
                     key={item}
-                    className={`eod-check-item ${isChecked ? 'done' : ''}`}
+                    className={`eod-check-card ${isChecked ? 'done' : ''}`}
                     onClick={() => toggleCheck(index)}
                   >
                     <div className="eod-check-box">
                       {isChecked ? '✓' : ''}
                     </div>
-                    <span>{item}</span>
+                    <div className="eod-check-info">
+                      <strong>Check #{index + 1}</strong>
+                      <span>{item}</span>
+                    </div>
                   </div>
                 )
               })}
             </div>
 
-            {/* Owner Authorization & Sign-Off Section */}
-            <div className="owner-signoff">
-              {/* Turnover Summary */}
-              <div className="turnover-summary">
-                <div>
-                  <span style={{ display: 'block' }}>Net Cash Turnover to Owner Safe</span>
-                  <small style={{ fontSize: 12, color: '#59738c' }}>
-                    Total Counted ₱{counted.toLocaleString('en-PH', { minimumFractionDigits: 2 })} − ₱5,000 Next Shift Float
-                  </small>
-                </div>
-                <strong>₱{netTurnover.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <span style={{ fontSize: 12, color: '#71839c' }}>Owner / Shift Supervisor</span>
-                  <input
-                    type="text"
-                    value="Dexter Espiritu (Owner)"
-                    readOnly
-                    style={{ height: 38, background: '#f6f9fc', border: '1px solid #dce5ed', borderRadius: 6, padding: '0 10px', fontSize: 13, color: '#173650' }}
-                  />
-                </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <span style={{ fontSize: 12, color: '#71839c' }}>Owner Authorization PIN</span>
-                  <input
-                    type="password"
-                    disabled={finalized}
-                    value={ownerPin}
-                    onChange={(e) => setOwnerPin(e.target.value)}
-                    style={{ height: 38, background: finalized ? '#f6f9fc' : '#ffffff', border: '1px solid #dce5ed', borderRadius: 6, padding: '0 10px', fontSize: 13, fontWeight: 'bold', color: '#173650' }}
-                  />
-                </label>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <Button
-                  icon="check"
-                  disabled={finalized || checksCompleted < 6}
-                  onClick={handleFinalize}
-                >
-                  {finalized ? '✓ Shift Finalized & Register Locked' : 'Finalize & Lock Daily Closing'}
-                </Button>
-                <Button
-                  variant="ghost"
-                  icon="receipt"
-                  onClick={() => setShowZReading(true)}
-                >
-                  Preview Z-Reading Daily Summary Report
-                </Button>
-              </div>
+            <div style={{ margin: '0 20px 20px', padding: '12px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+              <span style={{ color: '#475569' }}>
+                Certified by Shift Lead: <strong>Christopher Jude Ramos · EMP-004</strong>
+              </span>
+              <span style={{ color: checksCompleted === 6 ? '#078a76' : '#c64a50', fontWeight: 600 }}>
+                {checksCompleted === 6 ? '✓ Ready for Owner Sign-Off' : '⚠ All 6 items required before shift lock'}
+              </span>
             </div>
           </Card>
+
+          {/* Step Navigation Bar */}
+          <div className="eod-step-nav">
+            <Button variant="secondary" onClick={() => setEodTab('2. Yard Fleet Tally')}>
+              ← Back to Yard Fleet
+            </Button>
+            <Button
+              icon="arrow-right"
+              disabled={checksCompleted < 6}
+              onClick={() => setEodTab('4. Owner Remittance & Z-Reading')}
+            >
+              Proceed to Owner Sign-Off & Z-Reading →
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── TAB 4: OWNER REMITTANCE & Z-READING ── */}
+      {eodTab === '4. Owner Remittance & Z-Reading' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="eod-zreading-layout">
+            {/* Left Column: Remittance Breakdown & Owner Gate */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Remittance Breakdown */}
+              <Card>
+                <CardTitle
+                  icon="coins"
+                  title="Cash Safe Remittance & Deposit Drop"
+                  subtitle="Net cash transferred to main office drop safe after retaining tomorrow's starting float"
+                />
+                <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: '#64748b' }}>Total Physical Cash Counted</span>
+                    <strong className="tabular-nums" style={{ color: '#0f172a' }}>
+                      ₱{counted.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: '#64748b' }}>Less Morning Shift Starting Float</span>
+                    <span className="tabular-nums" style={{ color: '#b23942', fontWeight: 600 }}>
+                      −₱5,000.00
+                    </span>
+                  </div>
+                  <div style={{ borderTop: '2px dashed #e2e8f0', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong style={{ fontSize: 14, color: '#0f172a', display: 'block' }}>Net Cash Remittance to Safe</strong>
+                      <span style={{ fontSize: 11, color: '#64748b' }}>Cashier drop envelope #REM-20261016</span>
+                    </div>
+                    <strong className="tabular-nums" style={{ fontSize: 22, color: '#078a76' }}>
+                      ₱{netTurnover.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    </strong>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Owner PIN Authorization */}
+              <Card>
+                <CardTitle
+                  icon="check"
+                  title="Owner Shift Authorization Gate"
+                  subtitle="Authorize shift closure, lock terminal till register, and generate permanent Z-Reading"
+                />
+                <div style={{ padding: '16px 20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <span style={{ fontSize: 12, color: '#64748b' }}>Owner / Station Supervisor</span>
+                      <input
+                        type="text"
+                        value="Dexter Mendoza (Owner)"
+                        readOnly
+                        style={{ height: 36, background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 6, padding: '0 10px', fontSize: 13, color: '#0f172a' }}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <span style={{ fontSize: 12, color: '#64748b' }}>Owner PIN (Default: 4829)</span>
+                      <input
+                        type="password"
+                        disabled={finalized}
+                        value={ownerPin}
+                        onChange={(e) => setOwnerPin(e.target.value)}
+                        style={{ height: 36, background: finalized ? '#f8fafc' : '#ffffff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '0 10px', fontSize: 13, fontWeight: 'bold', color: '#0f172a' }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <Button
+                      icon="check"
+                      disabled={finalized || checksCompleted < 6}
+                      onClick={handleFinalize}
+                      style={{ height: 38 }}
+                    >
+                      {finalized ? '✓ Shift Finalized & Register Locked' : 'Authorize & Lock Daily Closing'}
+                    </Button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Button
+                        variant="secondary"
+                        style={{ flex: 1, height: 36 }}
+                        onClick={() => {
+                          setToast('Sending Z-Reading summary to thermal POS printer...')
+                          setTimeout(() => setToast(''), 2500)
+                        }}
+                      >
+                        Print Thermal Slip
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        style={{ flex: 1, height: 36 }}
+                        onClick={() => {
+                          setToast('Exported official Z-Reading report (PDF)!')
+                          setTimeout(() => setToast(''), 2500)
+                        }}
+                      >
+                        Export PDF
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Right Column: Embedded Official Z-Reading Report */}
+            <div className="z-embedded-card">
+              <div className="z-receipt">
+                <div className="z-receipt-header">
+                  <h2>SEAGAS LPG OPERATIONS & CONTROL SYSTEM</h2>
+                  <p>SEAOIL SEAGAS GenSan Operation · J. Catolico Ave., General Santos City</p>
+                  <p>TIN: 294-819-041-000 Non-VAT · DOE Permit: R12-DOE-LPG-0914</p>
+                  <p style={{ marginTop: 6, fontWeight: 'bold', letterSpacing: 1 }}>
+                    *** OFFICIAL END-OF-DAY Z-READING SUMMARY ***
+                  </p>
+                  <p>Report #: Z-20261016-01 · Terminal: REG-01 (Store Front)</p>
+                  <p>Shift: Oct 16, 2026 · 07:00 AM – 07:30 PM</p>
+                </div>
+
+                {/* Sales Revenue Section */}
+                <div className="z-section">
+                  <div className="z-section-title">1. Gross Revenue & Collections</div>
+                  <div className="z-row">
+                    <span>Cash POS Sales (Counter + COD)</span>
+                    <strong className="tabular-nums">₱24,850.00</strong>
+                  </div>
+                  <div className="z-row">
+                    <span>Suki Credit Collections (Aling Nena, etc.)</span>
+                    <strong className="tabular-nums">₱4,500.00</strong>
+                  </div>
+                  <div className="z-row">
+                    <span>GCash & Bank Transfers (Non-Cash)</span>
+                    <strong className="tabular-nums">₱3,200.00</strong>
+                  </div>
+                  <div className="z-row">
+                    <span>New Paautang / Accounts Receivable</span>
+                    <strong className="tabular-nums">₱1,960.00</strong>
+                  </div>
+                  <div className="z-row total">
+                    <span>TOTAL GROSS REVENUE TODAY</span>
+                    <strong className="tabular-nums" style={{ color: '#078a76' }}>₱34,510.00</strong>
+                  </div>
+                </div>
+
+                {/* Cash Reconciliation Section */}
+                <div className="z-section">
+                  <div className="z-section-title">2. Cash Drawer Reconciliation (Ending vs. Beginning)</div>
+                  <div className="z-row">
+                    <span>Beginning Cash Float</span>
+                    <span className="tabular-nums">₱5,000.00</span>
+                  </div>
+                  <div className="z-row">
+                    <span>Cash Inflow (Sales + Collections)</span>
+                    <span className="tabular-nums">+₱29,350.00</span>
+                  </div>
+                  <div className="z-row">
+                    <span>Operating Expenses (Petty Cash Disbursed)</span>
+                    <span className="tabular-nums" style={{ color: '#b13840' }}>−₱3,680.00</span>
+                  </div>
+                  <div className="z-row">
+                    <span>Expected Ending Drawer Balance</span>
+                    <strong className="tabular-nums">₱{expectedCash.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+                  </div>
+                  <div className="z-row" style={{ marginTop: 4 }}>
+                    <span>Actual Physical Cash Counted</span>
+                    <strong className="tabular-nums" style={{ color: variance === 0 ? '#078a76' : '#b13840' }}>
+                      ₱{counted.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    </strong>
+                  </div>
+                  <div className="z-row total">
+                    <span>SHORT / OVER VARIANCE</span>
+                    <strong className="tabular-nums" style={{ color: variance === 0 ? '#078a76' : variance < 0 ? '#b13840' : '#b76307' }}>
+                      {variance === 0 ? '₱0.00 (EXACT MATCH)' : variance < 0 ? `-₱${Math.abs(variance).toFixed(2)} (SHORTAGE)` : `+₱${variance.toFixed(2)} (OVERAGE)`}
+                    </strong>
+                  </div>
+                  {variance !== 0 && (
+                    <p style={{ fontSize: 11, color: '#71839c', margin: '5px 0 0', fontStyle: 'italic' }}>
+                      Reason: {varianceReason} · Notes: "{varianceNotes}"
+                    </p>
+                  )}
+                </div>
+
+                {/* Denomination Breakdown */}
+                <div className="z-section">
+                  <div className="z-section-title">3. Denomination Count Audit</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 16px', fontSize: 12 }}>
+                    <div>₱1,000 × {denoms[1000]} = ₱{(denoms[1000] * 1000).toLocaleString('en-PH')}</div>
+                    <div>₱500 × {denoms[500]} = ₱{(denoms[500] * 500).toLocaleString('en-PH')}</div>
+                    <div>₱200 × {denoms[200]} = ₱{(denoms[200] * 200).toLocaleString('en-PH')}</div>
+                    <div>₱100 × {denoms[100]} = ₱{(denoms[100] * 100).toLocaleString('en-PH')}</div>
+                    <div>₱50 × {denoms[50]} = ₱{(denoms[50] * 50).toLocaleString('en-PH')}</div>
+                    <div>₱20 × {denoms[20]} = ₱{(denoms[20] * 20).toLocaleString('en-PH')}</div>
+                    <div style={{ gridColumn: '1/-1' }}>Loose Coins = ₱{(denoms.coins || 0).toFixed(2)}</div>
+                  </div>
+                </div>
+
+                {/* Cylinder Movement Summary */}
+                <div className="z-section">
+                  <div className="z-section-title">4. Physical Yard Tally (SEAGAS Fleet)</div>
+                  <div className="z-row">
+                    <span>Full SEAGAS Cylinders Dispatched</span>
+                    <span>70 Tanks</span>
+                  </div>
+                  <div className="z-row">
+                    <span>Empty SEAGAS Basyo Retrieved</span>
+                    <span>70 Tanks</span>
+                  </div>
+                  <div className="z-row">
+                    <span>Closing Physical Yard Stock</span>
+                    <strong>428 Full / 163 Empty (591 Total)</strong>
+                  </div>
+                  <div className="z-row">
+                    <span>Physical Variance / Shrinkage</span>
+                    <strong style={{ color: '#078a76' }}>0 TANKS (100% BALANCED)</strong>
+                  </div>
+                </div>
+
+                {/* Remittance / Cash Drop */}
+                <div className="z-section" style={{ background: '#f5fbf9', padding: '10px', borderRadius: 6, margin: '10px 0' }}>
+                  <div className="z-row">
+                    <span>Total Physical Cash Counted</span>
+                    <span className="tabular-nums">₱{counted.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="z-row">
+                    <span>Less Retained Float (For Tomorrow Morning)</span>
+                    <span className="tabular-nums">−₱5,000.00</span>
+                  </div>
+                  <div className="z-row total" style={{ fontSize: 14 }}>
+                    <span>NET REMITTANCE / CASH DROP (OWNER SAFE)</span>
+                    <strong className="tabular-nums" style={{ color: '#078a76' }}>
+                      ₱{netTurnover.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="z-signatures">
+                  <div>
+                    <div className="z-sig-line">Christopher Jude Ramos</div>
+                    <span>Closing Shift Lead</span>
+                  </div>
+                  <div>
+                    <div className="z-sig-line">Dexter Mendoza</div>
+                    <span>Owner / Operations Head (GenSan)</span>
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'center', marginTop: 18, fontSize: 11, color: '#71839c' }}>
+                  SEAGAS LPG Operations Control System · GenSan Distribution Terminal
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Step Navigation Bar */}
+          <div className="eod-step-nav">
+            <Button variant="secondary" onClick={() => setEodTab('3. EOD Checklist')}>
+              ← Back to Checklist
+            </Button>
+            {finalized ? (
+              <Badge>✓ Shift Finalized & Register Locked</Badge>
+            ) : (
+              <Button icon="receipt" onClick={() => setShowZReading(true)}>
+                Open Floating Z-Reading Slip
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Official Z-Reading Report Modal */}
       {showZReading && (
         <div className="modal-backdrop document-backdrop" onClick={() => setShowZReading(false)}>
           <div className="document-modal z-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="document-close" onClick={() => setShowZReading(false)}>✕</button>
+            <button className="document-close" onClick={() => setShowZReading(false)} aria-label="Close Z-Reading Preview">✕</button>
 
             <div className="z-receipt">
               <div className="z-receipt-header">
-                <h2>DEXTER LPG TRADING & DISTRIBUTION</h2>
-                <p>184 Caruncho Ave, Brgy. San Antonio, Pasig City, Metro Manila</p>
-                <p>TIN: 294-819-041-000 Non-VAT · DOE Permit: NCR-DOE-LPG-0881</p>
+                <h2>SEAGAS LPG OPERATIONS & CONTROL SYSTEM</h2>
+                <p>SEAOIL SEAGAS GenSan Operation · J. Catolico Ave., General Santos City</p>
+                <p>TIN: 294-819-041-000 Non-VAT · DOE Permit: R12-DOE-LPG-0914</p>
                 <p style={{ marginTop: 6, fontWeight: 'bold', letterSpacing: 1 }}>
-                  *** OFFICIAL END-OF-DAY Z-READING REPORT ***
+                  *** OFFICIAL END-OF-DAY Z-READING SUMMARY ***
                 </p>
                 <p>Report #: Z-20261016-01 · Terminal: REG-01 (Store Front)</p>
                 <p>Shift: Oct 16, 2026 · 07:00 AM – 07:30 PM</p>
@@ -3621,9 +5500,9 @@ function DailyClosingEOD() {
 
               {/* Cash Reconciliation Section */}
               <div className="z-section">
-                <div className="z-section-title">2. Cash Drawer Reconciliation</div>
+                <div className="z-section-title">2. Cash Drawer Reconciliation (Ending vs. Beginning)</div>
                 <div className="z-row">
-                  <span>Opening Cash Float</span>
+                  <span>Beginning Cash Float</span>
                   <span>₱5,000.00</span>
                 </div>
                 <div className="z-row">
@@ -3631,11 +5510,11 @@ function DailyClosingEOD() {
                   <span>+₱29,350.00</span>
                 </div>
                 <div className="z-row">
-                  <span>Petty Cash Disbursements / Expenses</span>
+                  <span>Operating Expenses (Petty Cash Disbursed)</span>
                   <span style={{ color: '#b13840' }}>−₱3,680.00</span>
                 </div>
                 <div className="z-row">
-                  <span>Expected Drawer Cash Balance</span>
+                  <span>Expected Ending Drawer Balance</span>
                   <strong>₱{expectedCash.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
                 </div>
                 <div className="z-row" style={{ marginTop: 4 }}>
@@ -3645,7 +5524,7 @@ function DailyClosingEOD() {
                   </strong>
                 </div>
                 <div className="z-row total">
-                  <span>CLOSING CASH VARIANCE</span>
+                  <span>SHORT / OVER VARIANCE</span>
                   <strong style={{ color: variance === 0 ? '#078a76' : variance < 0 ? '#b13840' : '#b76307' }}>
                     {variance === 0 ? '₱0.00 (EXACT MATCH)' : variance < 0 ? `-₱${Math.abs(variance).toFixed(2)} (SHORTAGE)` : `+₱${variance.toFixed(2)} (OVERAGE)`}
                   </strong>
@@ -3673,37 +5552,37 @@ function DailyClosingEOD() {
 
               {/* Cylinder Movement Summary */}
               <div className="z-section">
-                <div className="z-section-title">4. Palit-Basyo Cylinder Movements</div>
+                <div className="z-section-title">4. Physical Yard Tally (SEAGAS Fleet)</div>
                 <div className="z-row">
-                  <span>Full Cylinders Sold / Dispatched</span>
+                  <span>Full SEAGAS Cylinders Dispatched</span>
                   <span>70 Tanks</span>
                 </div>
                 <div className="z-row">
-                  <span>Empty Basyo Retrieved from Customers</span>
+                  <span>Empty SEAGAS Basyo Retrieved</span>
                   <span>70 Tanks</span>
                 </div>
                 <div className="z-row">
-                  <span>Closing Yard Stock</span>
+                  <span>Closing Physical Yard Stock</span>
                   <strong>428 Full / 163 Empty (591 Total)</strong>
                 </div>
                 <div className="z-row">
-                  <span>Stock Discrepancy / Shrinkage</span>
-                  <strong style={{ color: '#078a76' }}>0 TANKS (BALANCED)</strong>
+                  <span>Physical Variance / Shrinkage</span>
+                  <strong style={{ color: '#078a76' }}>0 TANKS (100% BALANCED)</strong>
                 </div>
               </div>
 
-              {/* Cash Turnover to Owner Safe */}
+              {/* Remittance / Cash Drop */}
               <div className="z-section" style={{ background: '#f5fbf9', padding: '10px', borderRadius: 6, margin: '10px 0' }}>
                 <div className="z-row">
                   <span>Total Physical Cash Counted</span>
                   <span>₱{counted.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="z-row">
-                  <span>Less Retained Float (For Oct 17 Morning)</span>
+                  <span>Less Retained Float (For Tomorrow Morning)</span>
                   <span>−₱5,000.00</span>
                 </div>
                 <div className="z-row total" style={{ fontSize: 14 }}>
-                  <span>NET CASH TURNED OVER TO OWNER</span>
+                  <span>NET REMITTANCE / CASH DROP (OWNER SAFE)</span>
                   <strong style={{ color: '#078a76' }}>
                     ₱{netTurnover.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                   </strong>
@@ -3713,17 +5592,17 @@ function DailyClosingEOD() {
               {/* Signatures */}
               <div className="z-signatures">
                 <div>
-                  <div className="z-sig-line">Christopher Jude Espiritu</div>
-                  <span>Closing Cashier (Shift Lead)</span>
+                  <div className="z-sig-line">Christopher Jude Ramos</div>
+                  <span>Closing Shift Lead</span>
                 </div>
                 <div>
-                  <div className="z-sig-line">Dexter Espiritu</div>
-                  <span>Owner / Operations Head</span>
+                  <div className="z-sig-line">Dexter Mendoza</div>
+                  <span>Owner / Operations Head (GenSan)</span>
                 </div>
               </div>
 
               <div style={{ textAlign: 'center', marginTop: 18, fontSize: 11, color: '#71839c' }}>
-                Generated electronically by LPG Operations Management System v2.4 · Compliant with DOE RA 11592
+                SEAGAS LPG Operations Control System · GenSan Distribution Terminal
               </div>
             </div>
 
@@ -3761,9 +5640,9 @@ function DailyClosingEOD() {
 function StockMovementReport() {
   const [toast, setToast] = useState('')
   const rows = [
-    ['11kg Petron Gasul (POL)', 'POL', '140 F / 30 E', '+50 F', '-22 F', '-18 F', '+40 E', '-30 E', '150 F / 40 E', '0 · OK'],
-    ['11kg Solane Compact', 'Compact 20mm', '128 F / 42 E', '+20 F', '-12 F', '-10 F', '+22 E', '-20 E', '126 F / 44 E', '0 · OK'],
-    ['11kg Phoenix Super LPG', 'SNP Auto-Lock', '96 F / 28 E', '—', '-8 F', '-7 F', '+15 E', '-10 E', '81 F / 33 E', '0 · OK'],
+    ['11kg SEAGAS POL Standard', 'POL Threaded', '140 F / 30 E', '+50 F', '-22 F', '-18 F', '+40 E', '-30 E', '150 F / 40 E', '0 · OK'],
+    ['11kg SEAGAS Snap-On', 'Compact 20mm', '128 F / 42 E', '+20 F', '-12 F', '-10 F', '+22 E', '-20 E', '126 F / 44 E', '0 · OK'],
+    ['50kg SEAGAS Industrial Heavy', 'POL Heavy (SRV)', '64 F / 63 E', '+10 F', '-3 F', '—', '+3 E', '-20 E', '71 F / 46 E', '0 · OK'],
   ]
 
   function handleExport() {
@@ -3808,11 +5687,11 @@ function MovementLog() {
   const [filter, setFilter] = useState('All Movements')
   const [toast, setToast] = useState('')
   const rows = [
-    ['08:24 AM', 'LPG-004521', 'Petron Gasul', 'Sale', 'Maria Santos', 'ST001', 'Main Warehouse', 'With Customer'],
-    ['09:15 AM', 'LPG-003998', 'Solane', 'Exchange', 'Juan Dela Cruz', 'ST002', 'With Customer', 'Main Warehouse'],
-    ['10:02 AM', 'LPG-004617', 'Petron Gasul', 'Delivery', 'ABC Restaurant', 'ST003', 'Main Warehouse', 'Truck 03'],
-    ['11:37 AM', 'LPG-004305', 'Solane', 'Sale', 'Ana Reyes', 'ST001', 'Main Warehouse', 'With Customer'],
-    ['01:18 PM', 'LPG-004112', 'Phoenix Super LPG', 'Received', '—', 'ST004', 'Supplier', 'Main Warehouse'],
+    ['08:24 AM', 'SG-11-004521', 'SEAGAS (SEAOIL)', 'Sale', 'Maria Santos', 'ST001', 'GenSan Main Yard', 'With Customer'],
+    ['09:15 AM', 'SG-11-003998', 'SEAGAS (SEAOIL)', 'Exchange', 'Juan Dela Cruz', 'ST002', 'With Customer', 'GenSan Main Yard'],
+    ['10:02 AM', 'SG-11-004617', 'SEAGAS (SEAOIL)', 'Delivery', 'ABC Restaurant', 'ST003', 'GenSan Main Yard', 'Multi-cab 03'],
+    ['11:37 AM', 'SG-11-004305', 'SEAGAS (SEAOIL)', 'Sale', 'Ana Reyes', 'ST001', 'GenSan Main Yard', 'With Customer'],
+    ['01:18 PM', 'SG-11-004112', 'SEAGAS (SEAOIL)', 'Received', '—', 'ST004', 'SEAOIL Depot', 'GenSan Main Yard'],
   ]
   const shown = rows.filter(row => row.join(' ').toLowerCase().includes(query.toLowerCase()) && (filter === 'All Movements' || row[3] === filter.replace('Sold', 'Sale').replace('Delivered', 'Delivery').replace('Exchanged', 'Exchange')))
 
@@ -3848,37 +5727,508 @@ function MovementLog() {
   )
 }
 
-function ReportsAndAudit({ setPage }: { setPage: (page: string) => void }) {
-  const [tab, setTab] = useState('Monthly Summary')
-  const [search, setSearch] = useState('')
+function ARRiskControl() {
+  const { settings } = useStationSettings()
+  const [auditLog, setAuditLog] = useState<{ time: string; arId: string; customer: string; action: string; supervisor: string; reason: string }[]>([
+    { time: 'Oct 14, 2026 · 02:15 PM', arId: 'AR-882104', customer: 'ABC Restaurant', action: 'Exception Logged', supervisor: 'ST001 Paolo', reason: 'Aging 35 days — Delivery proceeded under signed repayment agreement, logged in audit' },
+    { time: 'Oct 10, 2026 · 10:45 AM', arId: 'AR-771059', customer: 'LM Food House', action: 'Transaction Blocked', supervisor: 'ST002 Maria', reason: 'Float 11 tanks — Order blocked at POS; customer advised to return shells' },
+  ])
+
   const [toast, setToast] = useState('')
+  const [search, setSearch] = useState('')
+  const [activeTab, setActiveTab] = useState('Active Risk & Float Ledger')
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Hard-Locked' | 'At-Risk' | 'Good Standing'>('All')
 
-  const chartData = [
-    { month: 'May', sales: 470000, expenses: 155000 },
-    { month: 'Jun', sales: 520000, expenses: 165000 },
-    { month: 'Jul', sales: 480000, expenses: 148000 },
-    { month: 'Aug', sales: 590000, expenses: 175000 },
-    { month: 'Sep', sales: 620000, expenses: 182000 },
-    { month: 'Oct', sales: 684250, expenses: 189460 },
-  ]
-  const stockRows = [
-    ['11kg Petron Gasul (POL)', 'POL', '140 F / 30 E', '+50 F', '-22 F', '-18 F', '+40 E', '-30 E', '150 F / 40 E', '0 · OK'],
-    ['11kg Solane Compact', 'Compact 20mm', '128 F / 42 E', '+20 F', '-12 F', '-10 F', '+22 E', '-20 E', '126 F / 44 E', '0 · OK'],
-    ['11kg Phoenix Super LPG', 'SNP Auto-Lock', '96 F / 28 E', '—', '-8 F', '-7 F', '+15 E', '-10 E', '81 F / 33 E', '0 · OK'],
-  ]
-  const auditRows = [
-    ['Oct 16, 2026', '01:18 PM', 'ST002', 'Invoice created', 'LM Food House · ₱600', 'INV-2026-0315'],
-    ['Oct 16, 2026', '11:42 AM', 'ST001', 'Expense recorded', 'Fuel · ₱1,500', 'EXP-0812'],
-    ['Oct 16, 2026', '10:28 AM', 'ST003', 'Delivery completed', 'ABC Restaurant', 'DEL-1017'],
-    ['Oct 16, 2026', '09:15 AM', 'ST002', 'Exchange transaction', 'Juan Dela Cruz', 'INV-2026-0314'],
-  ]
-
-  const filteredAudit = auditRows.filter(r => r.join(' ').toLowerCase().includes(search.toLowerCase()))
+  const agingDaysThreshold = parseInt(settings.agingLockDays, 10) || 30
+  const warnDaysThreshold = parseInt(settings.agingWarnDays, 10) || 15
 
   function showToast(msg: string) {
     setToast(msg)
-    setTimeout(() => setToast(''), 2500)
+    setTimeout(() => setToast(''), 3000)
   }
+
+  const lockedAccounts = customerRiskData.filter(c => evaluateRisk(c, agingDaysThreshold).locked)
+  const atRiskAccounts = customerRiskData.filter(c => {
+    const r = evaluateRisk(c, agingDaysThreshold)
+    return !r.locked && (c.oldestInvoiceDays >= warnDaysThreshold || c.currentFloat >= c.maxFloatLimit - 1)
+  })
+
+  const filteredData = customerRiskData.filter(c => {
+    const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase())
+    if (!matchesSearch) return false
+    const { locked } = evaluateRisk(c, agingDaysThreshold)
+    if (statusFilter === 'Hard-Locked') return locked
+    if (statusFilter === 'At-Risk') return !locked && (c.oldestInvoiceDays >= warnDaysThreshold || c.currentFloat >= c.maxFloatLimit - 1)
+    if (statusFilter === 'Good Standing') return !locked && c.oldestInvoiceDays < warnDaysThreshold && c.currentFloat < c.maxFloatLimit - 1
+    return true
+  })
+
+  const totalOverdue = customerRiskData
+    .flatMap(c => c.overdueInvoices)
+    .reduce((sum, inv) => sum + parseFloat(inv.amount.replace(/[₱,]/g, '')), 0)
+
+  const totalFloat = customerRiskData.reduce((sum, c) => sum + c.currentFloat, 0)
+
+  return (
+    <div className="page module-page">
+      {toast && <div className="toast"><span>✓</span>{toast}</div>}
+      {/* ── 1. PAGE HEADER (Ops Data Layout Pattern 1) ── */}
+      <MasterHeader
+        title="AR & Credit Risk Control"
+        subtitle={`Dual-ledger credit governance: ${agingDaysThreshold}-day invoice aging lock & steel cylinder float limits.`}
+        actions={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="date-button">
+              <Icon name="calendar" size={17} />October 16, 2026<Icon name="chevron" size={14} />
+            </button>
+            <Button
+              variant="secondary"
+              icon="download"
+              onClick={() => showToast('AR Risk Ledger exported: AR_Risk_Report_Oct16.xlsx')}
+            >
+              Export Report
+            </Button>
+
+          </div>
+        }
+      />
+
+      {/* ── 2. STAT STRIP (Ops Data Layout Pattern 2: One surface, 4 equal cells, hairline dividers) ── */}
+      <StatStrip
+        stats={[
+          {
+            label: 'Hard-Locked Accounts',
+            value: `${lockedAccounts.length}`,
+            sub: 'POS & dispatch release blocked',
+            status: lockedAccounts.length > 0 ? 'danger' : 'ok',
+          },
+          {
+            label: `Accounts At-Risk (${warnDaysThreshold}–${agingDaysThreshold - 1}d)`,
+            value: `${atRiskAccounts.length}`,
+            sub: `Approaching ${agingDaysThreshold}-day aging limit`,
+            status: atRiskAccounts.length > 0 ? 'warning' : 'ok',
+          },
+          {
+            label: 'Total Overdue Exposure',
+            value: `₱${totalOverdue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+            sub: `Unpaid invoices past ${agingDaysThreshold} days`,
+            status: totalOverdue > 0 ? 'danger' : 'ok',
+          },
+          {
+            label: 'Active Cylinder Float',
+            value: `${totalFloat} Tanks`,
+            sub: 'Shells out across commercial accounts',
+            status: 'info',
+          },
+        ]}
+      />
+
+      {/* ── 3. EMERGENCY LOCK STRIP (Pattern 1 Page Frame: full-width, shared edges) ── */}
+      {lockedAccounts.length > 0 && (
+        <div className="ar-lock-banner">
+          <div className="ar-lock-banner-icon">
+            <Icon name="close" size={20} />
+          </div>
+          <div className="ar-lock-banner-text">
+            <strong>{lockedAccounts.length} Accounts Hard-Locked — POS Checkout & Dispatch Blocked</strong>
+            <p>
+              {lockedAccounts.map(c => c.name).join(' and ')} breached risk governance thresholds. Accounts remain locked until violations are resolved — outstanding invoices must be settled or cylinders returned. See the AR Audit Log for full history.
+            </p>
+          </div>
+
+        </div>
+      )}
+
+      {/* ── 4. TABS (Ops Data Layout Pattern 3) ── */}
+      <FilterTabs
+        items={['Active Risk & Float Ledger', 'AR Exception Audit Log', 'Credit Policy & Lending Rules']}
+        active={activeTab}
+        onChange={setActiveTab}
+      />
+
+      {/* ── TAB 1: MASTER RISK & FLOAT LEDGER ── */}
+      {activeTab === 'Active Risk & Float Ledger' && (
+        <Card className="records-card master-table">
+          {/* Pattern 4: Toolbar (36px controls, search takes free space) */}
+          <div className="toolbar">
+            <SearchField value={search} onChange={setSearch} placeholder="Search customer, business, or risk tier..." />
+            <div style={{ display: 'flex', gap: 6 }}>
+              {(['All', 'Hard-Locked', 'At-Risk', 'Good Standing'] as const).map(t => (
+                <button
+                  key={t}
+                  className={`btn ${statusFilter === t ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ height: 36, fontSize: 12, padding: '0 12px' }}
+                  onClick={() => setStatusFilter(t)}
+                >
+                  {t}
+                  {t === 'Hard-Locked' && lockedAccounts.length > 0 && ` (${lockedAccounts.length})`}
+                  {t === 'At-Risk' && atRiskAccounts.length > 0 && ` (${atRiskAccounts.length})`}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Pattern 5 & 7: Table with Fixed Column Spec */}
+          <div className="ops-table-wrap">
+            <table className="ops-table-fixed">
+              <colgroup>
+                <col style={{ width: '220px' }} />
+                <col style={{ width: '130px' }} />
+                <col style={{ width: '170px' }} />
+                <col style={{ width: '190px' }} />
+                <col style={{ width: '170px' }} />
+                <col style={{ width: '140px' }} />
+                <col style={{ width: '110px' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th className="text-left">Customer / Business</th>
+                  <th className="text-left">Lending Tier</th>
+                  <th className="text-right">Credit Aging</th>
+                  <th className="text-right">Paautang Balance</th>
+                  <th className="text-right">Cylinder Float</th>
+                  <th className="text-left">Risk Status</th>
+                  <th className="text-right"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredData.map(c => {
+                  const { locked, reason, agingBreach, floatBreach } = evaluateRisk(c, agingDaysThreshold)
+                  const isAtRisk = !locked && (c.oldestInvoiceDays >= warnDaysThreshold || c.currentFloat >= c.maxFloatLimit - 1)
+                  const agingPct = Math.min(100, (c.oldestInvoiceDays / agingDaysThreshold) * 100)
+                  const floatPct = Math.min(100, (c.currentFloat / c.maxFloatLimit) * 100)
+                  const utilPct = Math.round((c.currentBalance / c.creditLimit) * 100)
+
+                  return (
+                    <tr key={c.name} className={locked ? 'clickable' : ''}>
+                      {/* Customer / Business */}
+                      <td className="cell-truncate">
+                        <strong style={{ color: '#0f172a' }}>{c.name}</strong>
+                        {c.overdueInvoices.length > 0 && (
+                          <span className="ops-cell-sub danger">
+                            {c.overdueInvoices.length} overdue bill{c.overdueInvoices.length > 1 ? 's' : ''} ({c.overdueInvoices[0].id})
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Lending Tier */}
+                      <td>
+                        <Badge>{c.lendingTier}</Badge>
+                      </td>
+
+                      {/* Credit Aging (Right aligned with tabular nums + mini bar) */}
+                      <td className="text-right tabular-nums">
+                        <div>
+                          <strong style={{ color: agingBreach ? '#dc2626' : c.oldestInvoiceDays >= warnDaysThreshold ? '#d97706' : '#078a76' }}>
+                            {c.oldestInvoiceDays}d
+                          </strong>
+                          <span style={{ color: '#64748b', fontSize: 11 }}> / {agingDaysThreshold}d max</span>
+                        </div>
+                        <div className="ops-mini-bar">
+                          <div
+                            className={`ops-mini-bar-fill ${agingBreach ? 'danger' : c.oldestInvoiceDays >= warnDaysThreshold ? 'warn' : 'ok'}`}
+                            style={{ width: `${agingPct}%` }}
+                          />
+                        </div>
+                      </td>
+
+                      {/* Paautang Balance (Right aligned with tabular nums) */}
+                      <td className="text-right tabular-nums">
+                        <div>
+                          <strong>₱{c.currentBalance.toLocaleString('en-PH')}</strong>
+                          <span style={{ color: '#64748b', fontSize: 11 }}> / ₱{(c.creditLimit / 1000).toFixed(0)}k</span>
+                        </div>
+                        <span className={`ops-cell-sub ${utilPct > 80 ? 'danger' : 'ok'}`}>
+                          {utilPct}% credit utilised
+                        </span>
+                      </td>
+
+                      {/* Cylinder Float (Right aligned with tabular nums + mini bar) */}
+                      <td className="text-right tabular-nums">
+                        <div>
+                          <strong style={{ color: floatBreach ? '#dc2626' : '#0f172a' }}>
+                            {c.currentFloat}
+                          </strong>
+                          <span style={{ color: '#64748b', fontSize: 11 }}> / {c.maxFloatLimit} tanks</span>
+                        </div>
+                        <div className="ops-mini-bar">
+                          <div
+                            className={`ops-mini-bar-fill ${floatBreach ? 'danger' : c.currentFloat >= c.maxFloatLimit - 1 ? 'warn' : 'ok'}`}
+                            style={{ width: `${floatPct}%` }}
+                          />
+                        </div>
+                      </td>
+
+                      {/* Risk Status (Quiet dot-plus-text StatusChip) */}
+                      <td>
+                        <StatusChip tone={locked ? 'danger' : isAtRisk ? 'warn' : 'ok'}>
+                          {locked
+                            ? (reason === 'BOTH' ? 'Aging + Float' : reason === 'AGING' ? '30-Day Lock' : 'Float Breach')
+                            : isAtRisk ? 'At Risk' : 'Clear'}
+                        </StatusChip>
+                      </td>
+
+                      {/* Lock indicator */}
+                      <td className="text-right">
+                        <span style={{ fontSize: 12, color: locked ? '#dc2626' : '#64748b', fontWeight: locked ? 700 : 400 }}>
+                          {locked ? '🔒 Locked' : 'Clear'}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="pagination">
+            <span>Showing {filteredData.length} of {customerRiskData.length} monitored commercial suki accounts</span>
+            <div>
+              <button disabled>‹</button>
+              <button className="current">1</button>
+              <button disabled>›</button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* ── TAB 2: AR EXCEPTION AUDIT LOG ── */}
+      {activeTab === 'AR Exception Audit Log' && (
+        <Card className="records-card master-table">
+          <div className="toolbar">
+            <SearchField value={search} onChange={setSearch} placeholder="Search by ref, customer, or staff..." />
+            <Button
+              variant="secondary"
+              icon="download"
+              onClick={() => showToast('Audit log exported: AR_Exception_Log_Oct16.csv')}
+            >
+              Export Audit Trail
+            </Button>
+          </div>
+
+          <div className="ops-table-wrap">
+            <table className="ops-table-fixed">
+              <colgroup>
+                <col style={{ width: '180px' }} />
+                <col style={{ width: '130px' }} />
+                <col style={{ width: '180px' }} />
+                <col style={{ width: '130px' }} />
+                <col style={{ width: '170px' }} />
+                <col />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th className="text-left">Timestamp</th>
+                  <th className="text-left">Exception Ref</th>
+                  <th className="text-left">Customer</th>
+                  <th className="text-left">Decision</th>
+                  <th className="text-left">Logged By</th>
+                  <th className="text-left">Reason / Context</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLog.filter(e => e.customer.toLowerCase().includes(search.toLowerCase()) || e.arId.toLowerCase().includes(search.toLowerCase())).map((entry, idx) => {
+                  const approved = entry.action.includes('Approved')
+                  return (
+                    <tr key={idx}>
+                      <td style={{ color: '#64748b', fontSize: 12 }}>{entry.time}</td>
+                      <td className="cell-mono" style={{ color: '#1877c9', fontWeight: 600 }}>{entry.arId}</td>
+                      <td style={{ fontWeight: 600 }}>{entry.customer}</td>
+                      <td>
+                        <StatusChip tone={approved ? 'ok' : 'danger'}>
+                          {approved ? 'Approved' : 'Rejected'}
+                        </StatusChip>
+                      </td>
+                      <td><strong>{entry.supervisor}</strong></td>
+                      <td className="cell-truncate" style={{ fontSize: 12, color: '#475569' }} title={entry.reason}>
+                        {entry.reason}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* ── TAB 3: CREDIT POLICY & LENDING RULES ── */}
+      {activeTab === 'Credit Policy & Lending Rules' && (
+        <div className="ar-policy-grid">
+          {/* Card 1: Dual-Breach Governance Rules */}
+          <Card>
+            <CardTitle
+              icon="receipt"
+              title="Dual-Breach Governance Rules"
+              subtitle="Algorithmic lock conditions governing POS checkout and dispatch releases"
+            />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div className="ar-rule-row">
+                <span className="ar-rule-tag danger">Aging ≥ 30d</span>
+                <div className="ar-rule-content">
+                  <strong>Automatic Credit Aging Lock</strong>
+                  <p>
+                    Any customer holding an unpaid delivery invoice older than 30 calendar days is immediately blocked from generating sales orders, palit-basyo exchanges, or dispatch trip manifests.
+                  </p>
+                </div>
+              </div>
+              <div className="ar-rule-row">
+                <span className="ar-rule-tag danger">Float &gt; Limit</span>
+                <div className="ar-rule-content">
+                  <strong>Steel Cylinder Float Ceiling Breach</strong>
+                  <p>
+                    Triggered when unreturned empty basyo cylinders in customer custody exceed their lending tier limit. Releases of new full tanks are halted to protect station steel assets.
+                  </p>
+                </div>
+              </div>
+              <div className="ar-rule-row">
+                <span className="ar-rule-tag warn">{warnDaysThreshold}–{agingDaysThreshold - 1} Days</span>
+                <div className="ar-rule-content">
+                  <strong>At-Risk Account Warning</strong>
+                  <p>
+                    Accounts approaching the {agingDaysThreshold}-day threshold display visual caution alerts on all terminals to prompt cashier collection before hard-lock activation.
+                  </p>
+                </div>
+              </div>
+              <div className="ar-rule-row">
+                <span className="ar-rule-tag ok">Audit Trail</span>
+                <div className="ar-rule-content">
+                  <strong>Immutable AR Audit Log</strong>
+                  <p>
+                    Every transaction attempted on a locked account is automatically recorded in the AR Exception Audit Log — timestamp, customer, staff code, and reason. The supervisor reviews the log; no override mechanism exists. Violations must be resolved at source to clear the lock.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Card 2: Commercial Lending Tier Matrix */}
+          <Card>
+            <CardTitle
+              icon="coins"
+              title="Lending Tier & Collateral Matrix"
+              subtitle="Pre-configured credit ceilings and allowed cylinder float by customer tier"
+            />
+            <table className="ar-tier-table">
+              <thead>
+                <tr>
+                  <th>Lending Tier</th>
+                  <th>Collateral Required</th>
+                  <th>Credit Limit</th>
+                  <th>Float Ceiling</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <strong style={{ color: '#078a76' }}>Full Deposit</strong>
+                    <span className="ops-cell-sub">Residential & Walk-in</span>
+                  </td>
+                  <td>100% Cash Deposit</td>
+                  <td className="tabular-nums">₱2,500.00</td>
+                  <td className="tabular-nums">3 Tanks</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong style={{ color: '#1877c9' }}>Mutual Agreement</strong>
+                    <span className="ops-cell-sub">High-Volume Commercial</span>
+                  </td>
+                  <td>Signed MOA / Bank PDC</td>
+                  <td className="tabular-nums">₱80,000.00</td>
+                  <td className="tabular-nums">10 Tanks</td>
+                </tr>
+                <tr>
+                  <td>
+                    <strong style={{ color: '#b76307' }}>Partial Deposit</strong>
+                    <span className="ops-cell-sub">Suki Bakeries & Carinderia</span>
+                  </td>
+                  <td>50% Cash Deposit + Trust</td>
+                  <td className="tabular-nums">₱30,000.00</td>
+                  <td className="tabular-nums">6 Tanks</td>
+                </tr>
+              </tbody>
+            </table>
+            <div style={{ padding: '14px 18px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', fontSize: 12, color: '#64748b' }}>
+              ℹ Tier parameters can be re-calibrated in <strong>Settings → Credit & Float Ceilings</strong>.
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ReportsAndAudit({ setPage }: { setPage: (page: string) => void }) {
+  const { settings } = useStationSettings()
+  const [tab, setTab] = useState('P&L & Financial Summary')
+  const [period, setPeriod] = useState<'October 2026' | 'September 2026' | 'Q3 2026' | 'YTD 2026'>('October 2026')
+  const [search, setSearch] = useState('')
+  const [auditCategory, setAuditCategory] = useState('All')
+  const [inspectingEvent, setInspectingEvent] = useState<any | null>(null)
+  const [toast, setToast] = useState('')
+
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 2600)
+  }
+
+  // Monthly performance dataset
+  const chartData = [
+    { month: 'May', sales: 470000, expenses: 155000, cogs: 284000 },
+    { month: 'Jun', sales: 520000, expenses: 165000, cogs: 312000 },
+    { month: 'Jul', sales: 480000, expenses: 148000, cogs: 289000 },
+    { month: 'Aug', sales: 590000, expenses: 175000, cogs: 356000 },
+    { month: 'Sep', sales: 620000, expenses: 182000, cogs: 374000 },
+    { month: 'Oct', sales: 684250, expenses: 189460, cogs: 412800 },
+  ]
+
+  // DOE RA 11592 comprehensive fleet movement rows
+  const stockRows = [
+    { sku: '11kg SEAGAS POL Standard', valve: 'POL Threaded 22mm', begF: 140, begE: 30, depotIn: 50, counterOut: 22, deliveryOut: 18, emptiesIn: 40, plantOut: 30, endF: 150, endE: 40, status: '0 · Balanced' },
+    { sku: '11kg SEAGAS Snap-On', valve: 'Compact 20mm Quick-On', begF: 128, begE: 42, depotIn: 20, counterOut: 12, deliveryOut: 10, emptiesIn: 22, plantOut: 20, endF: 126, endE: 44, status: '0 · Balanced' },
+    { sku: '50kg SEAGAS Industrial Heavy', valve: 'POL Heavy (SRV)', begF: 64, begE: 63, depotIn: 10, counterOut: 1, deliveryOut: 2, emptiesIn: 3, plantOut: 20, endF: 71, endE: 46, status: '0 · Balanced' },
+    { sku: '2.7kg SEAGAS Camping Tank', valve: 'Compact Camping Valve', begF: 96, begE: 28, depotIn: 0, counterOut: 8, deliveryOut: 7, emptiesIn: 15, plantOut: 10, endF: 81, endE: 33, status: '0 · Balanced' },
+    { sku: 'Trapped Cross-Brand Basyo', valve: 'Mixed (Gasul/Solane)', begF: 0, begE: 14, depotIn: 0, counterOut: 0, deliveryOut: 0, emptiesIn: 18, plantOut: 15, endF: 0, endE: 17, status: 'Swapped / Held' },
+    { sku: 'Quarantine / Requal Bay', valve: 'Dented / 5-Yr Requal Hold', begF: 0, begE: 4, depotIn: 0, counterOut: 0, deliveryOut: 0, emptiesIn: 0, plantOut: 0, endF: 0, endE: 4, status: 'Locked (RA 11592)' },
+  ]
+
+  // Rich immutable audit dataset (14 operational records)
+  const auditEntries = [
+    { time: 'Oct 16, 2026 · 07:45 PM', staffCode: 'OWNER', staffName: 'Dexter Mendoza', category: 'EOD Closing', action: 'Daily Shift Locked', ref: 'Z-20261016-01', counterparty: 'Store Register REG-01', details: 'Shift #1 closed, till drawer locked with ₱25,620.00 safe remittance drop. PIN authorization verified.', hash: '8f4c91a02b489c...d31e92' },
+    { time: 'Oct 16, 2026 · 07:28 PM', staffCode: 'EMP-004', staffName: 'Christopher Jude', category: 'EOD Closing', action: 'Till Denomination Tally', ref: 'EOD-20261016', counterparty: 'Cash Drawer REG-01', details: 'Itemized 6 bill denominations + coins. Counted ₱30,620.00 vs expected ₱30,670.00 (-₱50 variance logged).', hash: '3e12fa89b1772c...c498ae' },
+    { time: 'Oct 16, 2026 · 03:40 PM', staffCode: 'OWNER', staffName: 'Dexter Mendoza', category: 'AR Overrides', action: 'Supervisor Unlock Approved', ref: 'OVR-2026-081', counterparty: 'LM Food House', details: 'Overrode Float Ceiling Lock (12/10 tanks) for 2 emergency 11kg tanks on signed PDC guarantee #78192.', hash: '9b740ef1a8904e...42cd09' },
+    { time: 'Oct 16, 2026 · 01:18 PM', staffCode: 'ST002', staffName: 'Maria Lopez', category: 'POS Sales', action: 'Invoice & Swap Created', ref: 'INV-2026-0315', counterparty: 'LM Food House', details: 'Palit-basyo sale: 1x 11kg SEAGAS POL (₱600). Sound SG-11-004112 returned. Paid cash on counter.', hash: '12a9bc412389fe...59eb01' },
+    { time: 'Oct 16, 2026 · 12:05 PM', staffCode: 'ST004', staffName: 'Ramon Bautista', category: 'Receiving QC', action: 'Depot Stock Accepted', ref: 'REC-2026-104', counterparty: 'SEAOIL Makar Depot', details: 'QC pass: 80x 11kg SEAGAS full cylinders. Spot weights 25.8–26.1 kg verified compliant (11.0 kg net gas).', hash: '56fe019a3b821c...77dd81' },
+    { time: 'Oct 16, 2026 · 11:42 AM', staffCode: 'ST001', staffName: 'Christopher Jude', category: 'Operational OPEX', action: 'Expense Recorded', ref: 'EXP-0812', counterparty: 'Petron Calumpang', details: 'Disbursed petty cash ₱1,500.00 for Delivery Multicab fuel (Plate #KAA-9182). Official receipt attached.', hash: '7c89a012de432b...99ff24' },
+    { time: 'Oct 16, 2026 · 10:28 AM', staffCode: 'ST003', staffName: 'Junjun Morales', category: 'Dispatches', action: 'Delivery Dispatched & Paid', ref: 'DEL-1017', counterparty: 'ABC Restaurant', details: 'Dispatched 4x 50kg Heavy cylinders. COD collection ₱19,000.00 cash remitted. Out: SG-50-001092..95.', hash: 'f4129bc87a110e...33ee11' },
+    { time: 'Oct 16, 2026 · 09:15 AM', staffCode: 'ST002', staffName: 'Maria Lopez', category: 'POS Sales', action: 'Walk-in Palit-Basyo', ref: 'INV-2026-0314', counterparty: 'Juan Dela Cruz', details: 'Exchanged 1x 11kg Snap-On with cross-brand Prycegas shell. ₱50 off-brand inspection surcharge applied.', hash: '88de0914fb672a...11aa34' },
+    { time: 'Oct 16, 2026 · 08:30 AM', staffCode: 'ST001', staffName: 'Christopher Jude', category: 'Dispatches', action: 'Route Manifest Assigned', ref: 'TRIP-2026-042', counterparty: 'Driver Junjun (Rider #1)', details: 'Loaded 18x 11kg POL tanks and 4x 50kg tanks for Labangal-Calumpang route delivery manifest.', hash: '44cd1298ef789c...66bb55' },
+    { time: 'Oct 16, 2026 · 08:00 AM', staffCode: 'ST001', staffName: 'Christopher Jude', category: 'EOD Closing', action: 'Morning Till Opened', ref: 'OPEN-20261016', counterparty: 'Cash Drawer REG-01', details: 'Beginning cash float verified: ₱5,000.00 (4x ₱1k, 1x ₱500, 2x ₱200, 1x ₱100). Register opened.', hash: '09a41b52ef341d...88ff72' },
+    { time: 'Oct 15, 2026 · 04:15 PM', staffCode: 'OWNER', staffName: 'Dexter Mendoza', category: 'AR Overrides', action: 'Supervisor Unlock Rejected', ref: 'OVR-2026-080', counterparty: 'ABC Restaurant', details: 'Rejected dispatch release: 38-day aging invoice (₱22,500.00) unpaid. Required 50% cashier collection first.', hash: 'aa14ef98cd7812...22ee44' },
+    { time: 'Oct 15, 2026 · 02:10 PM', staffCode: 'ST002', staffName: 'Maria Lopez', category: 'POS Sales', action: 'New Cylinder Released', ref: 'DEP-2026-092', counterparty: 'Elena Bautista', details: 'New 11kg SEAGAS cylinder released with ₱1,800.00 refundable deposit slip #DS-1092 issued to customer.', hash: '55bc0912fa349c...77dd33' },
+    { time: 'Oct 15, 2026 · 11:20 AM', staffCode: 'ST004', staffName: 'Ramon Bautista', category: 'Receiving QC', action: 'Quarantine Bay Transfer', ref: 'QC-SEG-019', counterparty: 'Yard Custody', details: 'Segregated 2x corroded 11kg shells past 5-year BPS hydrostatic requalification. Moved to locked cage.', hash: '22ef77aa89452b...00bb11' },
+    { time: 'Oct 15, 2026 · 09:40 AM', staffCode: 'ST003', staffName: 'Junjun Morales', category: 'Dispatches', action: 'Suki Credit Payment', ref: 'COLL-2026-044', counterparty: "Aling Nena's Carinderia", details: 'Collected ₱4,500.00 partial credit settlement for 3x 11kg refill passbook ledger #KART-019.', hash: '66ff11dd88341a...44aa22' },
+  ]
+
+  const filteredAudit = auditEntries.filter(entry => {
+    const matchesSearch = search === '' ||
+      entry.details.toLowerCase().includes(search.toLowerCase()) ||
+      entry.ref.toLowerCase().includes(search.toLowerCase()) ||
+      entry.staffName.toLowerCase().includes(search.toLowerCase()) ||
+      entry.counterparty.toLowerCase().includes(search.toLowerCase()) ||
+      entry.action.toLowerCase().includes(search.toLowerCase())
+    const matchesCategory = auditCategory === 'All' || entry.category.includes(auditCategory)
+    return matchesSearch && matchesCategory
+  })
+
+  // Suki credit exposure dataset
+  const creditExposureData = [
+    { name: 'ABC Restaurant', tier: 'Mutual Agreement', creditLimit: 50000, balance: 38200, oldestDays: 38, float: 14, maxFloat: 10, status: 'Locked (Aging ≥30d)' },
+    { name: 'LM Food House', tier: 'Mutual Agreement', creditLimit: 30000, balance: 14500, oldestDays: 18, float: 12, maxFloat: 10, status: 'Locked (Float >10)' },
+    { name: 'Golden Dragon Restaurant', tier: 'Mutual Agreement', creditLimit: 80000, balance: 42000, oldestDays: 12, float: 8, maxFloat: 10, status: 'Healthy' },
+    { name: 'Villa Rose Bakery', tier: 'Partial Deposit', creditLimit: 25000, balance: 8500, oldestDays: 8, float: 4, maxFloat: 6, status: 'Healthy' },
+    { name: "Aling Nena's Carinderia", tier: 'Full Deposit', creditLimit: 5000, balance: 1200, oldestDays: 4, float: 2, maxFloat: 3, status: 'Healthy' },
+  ]
 
   const maxValue = 750000
   const chartHeight = 220
@@ -3888,246 +6238,1557 @@ function ReportsAndAudit({ setPage }: { setPage: (page: string) => void }) {
   const topPad = 16
   const usableHeight = chartHeight - topPad - bottomPad
   const groupWidth = 68
-  const barWidth = 16
+  const barWidth = 14
 
   return (
     <div className="page module-page">
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
+
       <MasterHeader
-        title="Reports & Audit Controls"
-        subtitle="Monthly financial summary, DOE regulatory stock movement, and permanent read-only audit trails."
+        title="Reports, P&L & Audit Controls"
+        subtitle="Executive financial performance, audited statement of profit & loss, DOE RA 11592 compliance logs, and immutable cryptographic audit trails."
         actions={
-          <div className="heading-actions">
-            <button className="date-button">
-              <Icon name="calendar" size={17} />
-              October 2026
-              <Icon name="chevron" size={14} />
-            </button>
-            <Button icon="download" onClick={() => showToast('Downloaded: Monthly_Financial_Summary_Oct2026.xlsx')}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <select
+              value={period}
+              onChange={(e) => {
+                setPeriod(e.target.value as any)
+                showToast(`Switched active reporting period to ${e.target.value}`)
+              }}
+              style={{
+                height: 36,
+                padding: '0 12px',
+                border: '1px solid #cbd5e1',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#0f172a',
+                background: 'white',
+              }}
+            >
+              <option value="October 2026">October 2026 (MTD)</option>
+              <option value="September 2026">September 2026</option>
+              <option value="Q3 2026">Q3 2026 (Jul–Sep)</option>
+              <option value="YTD 2026">Full Year 2026 (YTD)</option>
+            </select>
+            <Button
+              variant="secondary"
+              icon="receipt"
+              onClick={() => showToast('Generating official Station Financial Package (PDF)...')}
+            >
+              Print Summary
+            </Button>
+            <Button
+              icon="download"
+              onClick={() => showToast(`Downloaded: SEAGAS_${period.replace(/\s+/g, '_')}_Financial_Report.xlsx`)}
+            >
               Export Report
             </Button>
           </div>
         }
       />
+
       <FilterTabs
-        items={['Monthly Summary', 'DOE Stock Movement Report', 'Audit Logs (Read-Only)']}
+        items={[
+          'P&L & Financial Summary',
+          'DOE Stock Movement (RA 11592)',
+          'Immutable Audit Trail',
+          'Credit Exposure & Liabilities',
+        ]}
         active={tab}
         onChange={setTab}
       />
 
-      {tab === 'Monthly Summary' ? (
-        <>
-          <div className="report-kpis">
-            {[
-              ['Total Sales', '₱684,250', '+12.5%'],
-              ['Cylinders Received', '1,248', '+8.2%'],
-              ['Total Expenses', '₱189,460', '-3.1%'],
-              ['Simple Profit', '₱494,790', '+18.8%'],
-            ].map((x, i) => (
-              <Card key={x[0]}>
-                <span>{x[0]}</span>
-                <strong>{x[1]}</strong>
-                <small className={i === 2 ? 'negative' : ''}>
-                  {x[2]} vs. September
-                </small>
-              </Card>
-            ))}
-          </div>
+      {/* ── TAB 1: P&L & FINANCIAL SUMMARY ── */}
+      {tab === 'P&L & Financial Summary' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Executive Stat Strip */}
+          <StatStrip
+            stats={[
+              {
+                label: 'Gross LPG Revenue',
+                value: '₱684,250.00',
+                sub: `+12.5% MTD vs. Sep · ${period}`,
+                status: 'ok',
+              },
+              {
+                label: 'Cost of Goods Sold (COGS)',
+                value: '₱412,800.00',
+                sub: '60.3% SEAOIL Depot Procurement',
+                status: 'info',
+              },
+              {
+                label: 'Operational Overhead (OPEX)',
+                value: '₱189,460.00',
+                sub: '-3.1% OPEX Control · Fuel & Payroll',
+                status: 'ok',
+              },
+              {
+                label: 'Net Station Operating Profit',
+                value: '₱81,990.00',
+                sub: '12.0% Net Margin · ₱2,644/day run rate',
+                status: 'ok',
+              },
+            ]}
+          />
 
           <div className="reports-grid">
-            <Card>
-              <CardTitle
-                icon="chart"
-                title="Sales & Expenses"
-                subtitle="Monthly performance for 2026"
-              />
+            {/* Left Column: Visual Revenue Charts & SKU Distribution */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Monthly Bar Chart */}
+              <Card>
+                <CardTitle
+                  icon="chart"
+                  title="Revenue, COGS & Expense Progression (2026)"
+                  subtitle="Monthly trend comparing Gross Sales, Terminal Procurement COGS, and Store OPEX"
+                />
 
-              <div
-                className="line-chart"
-                style={{
-                  padding: '8px 0 0',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'flex-end',
-                    gap: 16,
-                    marginBottom: 8,
-                    fontSize: 12,
-                    color: '#71839C',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: 2,
-                        background: '#12A995',
-                        display: 'inline-block',
-                      }}
-                    />
-                    <span>Sales</span>
+                <div className="line-chart" style={{ padding: '8px 0 0' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      gap: 16,
+                      marginBottom: 8,
+                      fontSize: 12,
+                      color: '#71839c',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: '#12a995', display: 'inline-block' }} />
+                      <span>Gross Sales</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: '#0d2b45', display: 'inline-block' }} />
+                      <span>COGS</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 2, background: '#1877c9', display: 'inline-block' }} />
+                      <span>OPEX</span>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span
-                      style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: 2,
-                        background: '#1877C9',
-                        display: 'inline-block',
-                      }}
-                    />
-                    <span>Expenses</span>
-                  </div>
-                </div>
 
-                <svg
-                  viewBox={`0 0 ${chartWidth} ${chartHeight}`}
-                  width="100%"
-                  height="220"
-                  role="img"
-                  aria-label="Sales and expenses bar chart"
-                >
-                  {[0, 1, 2, 3, 4].map((i) => {
-                    const y = topPad + (usableHeight / 4) * i
-                    return (
-                      <line
-                        key={i}
-                        x1={leftPad}
-                        y1={y}
-                        x2={chartWidth - 8}
-                        y2={y}
-                        stroke="#E7EEF6"
-                        strokeWidth="1"
-                      />
-                    )
-                  })}
+                  <svg
+                    viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                    width="100%"
+                    height="220"
+                    role="img"
+                    aria-label="Sales, COGS and expenses chart"
+                  >
+                    {[0, 1, 2, 3, 4].map((i) => {
+                      const y = topPad + (usableHeight / 4) * i
+                      return (
+                        <line
+                          key={i}
+                          x1={leftPad}
+                          y1={y}
+                          x2={chartWidth - 8}
+                          y2={y}
+                          stroke="#E7EEF6"
+                          strokeWidth="1"
+                        />
+                      )
+                    })}
 
-                  {[750000, 500000, 250000, 0].map((value, i) => {
-                    const y = topPad + (usableHeight / 3) * i
-                    return (
-                      <text
-                        key={value}
-                        x={4}
-                        y={y + 4}
-                        fontSize="11"
-                        fill="#71839C"
-                      >
-                        ₱{value === 0 ? '0' : `${value / 1000}k`}
-                      </text>
-                    )
-                  })}
-
-                  {chartData.map((item, i) => {
-                    const x = leftPad + i * groupWidth + 18
-                    const salesHeight = (item.sales / maxValue) * usableHeight
-                    const expensesHeight = (item.expenses / maxValue) * usableHeight
-                    const salesY = topPad + usableHeight - salesHeight
-                    const expensesY = topPad + usableHeight - expensesHeight
-
-                    return (
-                      <g key={item.month}>
-                        <rect
-                          x={x}
-                          y={salesY}
-                          width={barWidth}
-                          height={salesHeight}
-                          rx={4}
-                          fill="#12A995"
-                        >
-                          <title>{`Sales (${item.month}): ₱${item.sales.toLocaleString('en-PH')}`}</title>
-                        </rect>
-
-                        <rect
-                          x={x + barWidth + 6}
-                          y={expensesY}
-                          width={barWidth}
-                          height={expensesHeight}
-                          rx={4}
-                          fill="#1877C9"
-                        >
-                          <title>{`Expenses (${item.month}): ₱${item.expenses.toLocaleString('en-PH')}`}</title>
-                        </rect>
-
+                    {[750000, 500000, 250000, 0].map((value, i) => {
+                      const y = topPad + (usableHeight / 3) * i
+                      return (
                         <text
-                          x={x + barWidth + 3}
-                          y={chartHeight - 6}
-                          textAnchor="middle"
+                          key={value}
+                          x={4}
+                          y={y + 4}
                           fontSize="11"
                           fill="#71839C"
                         >
-                          {item.month}
+                          ₱{value === 0 ? '0' : `${value / 1000}k`}
                         </text>
-                      </g>
-                    )
-                  })}
-                </svg>
+                      )
+                    })}
+
+                    {chartData.map((item, i) => {
+                      const x = leftPad + i * groupWidth + 14
+                      const salesHeight = (item.sales / maxValue) * usableHeight
+                      const cogsHeight = (item.cogs / maxValue) * usableHeight
+                      const expensesHeight = (item.expenses / maxValue) * usableHeight
+                      const salesY = topPad + usableHeight - salesHeight
+                      const cogsY = topPad + usableHeight - cogsHeight
+                      const expensesY = topPad + usableHeight - expensesHeight
+
+                      return (
+                        <g key={item.month}>
+                          {/* Sales Bar */}
+                          <rect
+                            x={x}
+                            y={salesY}
+                            width={barWidth}
+                            height={salesHeight}
+                            rx={3}
+                            fill="#12A995"
+                          >
+                            <title>{`Sales (${item.month}): ₱${item.sales.toLocaleString('en-PH')}`}</title>
+                          </rect>
+
+                          {/* COGS Bar */}
+                          <rect
+                            x={x + barWidth + 3}
+                            y={cogsY}
+                            width={barWidth}
+                            height={cogsHeight}
+                            rx={3}
+                            fill="#0d2b45"
+                          >
+                            <title>{`COGS (${item.month}): ₱${item.cogs.toLocaleString('en-PH')}`}</title>
+                          </rect>
+
+                          {/* Expenses Bar */}
+                          <rect
+                            x={x + (barWidth * 2) + 6}
+                            y={expensesY}
+                            width={barWidth}
+                            height={expensesHeight}
+                            rx={3}
+                            fill="#1877C9"
+                          >
+                            <title>{`OPEX (${item.month}): ₱${item.expenses.toLocaleString('en-PH')}`}</title>
+                          </rect>
+
+                          <text
+                            x={x + barWidth + 6}
+                            y={chartHeight - 6}
+                            textAnchor="middle"
+                            fontSize="11"
+                            fill="#71839C"
+                          >
+                            {item.month}
+                          </text>
+                        </g>
+                      )
+                    })}
+                  </svg>
+                </div>
+              </Card>
+
+              {/* SKU Revenue Mix */}
+              <Card>
+                <CardTitle
+                  icon="coins"
+                  title="Revenue Contribution by Product SKU"
+                  subtitle="Percentage and volume contribution to total gross monthly revenue"
+                />
+                <div style={{ padding: '0 20px 20px' }}>
+                  <div className="sku-progress-bar">
+                    <div className="sku-progress-segment" style={{ width: '64.0%', background: '#12a995' }} title="11kg Household: 64.0%" />
+                    <div className="sku-progress-segment" style={{ width: '26.1%', background: '#1877c9' }} title="50kg Industrial: 26.1%" />
+                    <div className="sku-progress-segment" style={{ width: '6.2%', background: '#f59e0b' }} title="2.7kg Camping: 6.2%" />
+                    <div className="sku-progress-segment" style={{ width: '2.2%', background: '#8b5cf6' }} title="Off-Brand Swap: 2.2%" />
+                    <div className="sku-progress-segment" style={{ width: '1.5%', background: '#64748b' }} title="Accessories: 1.5%" />
+                  </div>
+
+                  <div className="sku-legend-grid">
+                    <div className="sku-legend-item">
+                      <span className="sku-legend-dot" style={{ background: '#12a995' }} />
+                      <div>
+                        <strong>₱438,200 (64.0%)</strong>
+                        <span className="ops-cell-sub">11kg Standard Refill</span>
+                      </div>
+                    </div>
+                    <div className="sku-legend-item">
+                      <span className="sku-legend-dot" style={{ background: '#1877c9' }} />
+                      <div>
+                        <strong>₱178,500 (26.1%)</strong>
+                        <span className="ops-cell-sub">50kg Industrial Tanks</span>
+                      </div>
+                    </div>
+                    <div className="sku-legend-item">
+                      <span className="sku-legend-dot" style={{ background: '#f59e0b' }} />
+                      <div>
+                        <strong>₱42,350 (6.2%)</strong>
+                        <span className="ops-cell-sub">2.7kg Camping Tanks</span>
+                      </div>
+                    </div>
+                    <div className="sku-legend-item">
+                      <span className="sku-legend-dot" style={{ background: '#8b5cf6' }} />
+                      <div>
+                        <strong>₱15,200 (2.2%)</strong>
+                        <span className="ops-cell-sub">Swap Surcharges</span>
+                      </div>
+                    </div>
+                    <div className="sku-legend-item">
+                      <span className="sku-legend-dot" style={{ background: '#64748b' }} />
+                      <div>
+                        <strong>₱10,000 (1.5%)</strong>
+                        <span className="ops-cell-sub">Accessories & Hoses</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Right Column: Audited Statement of Profit & Loss (P&L) */}
+            <Card>
+              <CardTitle
+                icon="receipt"
+                title={`Statement of Profit & Loss (${period})`}
+                subtitle="Audited operational financial statement for SEAGAS General Santos Station"
+                action={<Badge>Audited Book</Badge>}
+              />
+
+              <table className="pl-table">
+                <tbody>
+                  {/* Revenue Section */}
+                  <tr className="pl-header">
+                    <td>1. Gross Operating Revenue</td>
+                    <td className="text-right">Amount (₱)</td>
+                  </tr>
+                  <tr className="pl-row">
+                    <td className="indent">Walk-in Counter POS Sales</td>
+                    <td className="text-right tabular-nums">₱312,400.00</td>
+                  </tr>
+                  <tr className="pl-row">
+                    <td className="indent">Delivery Route Dispatches (COD & Suki)</td>
+                    <td className="text-right tabular-nums">₱321,850.00</td>
+                  </tr>
+                  <tr className="pl-row">
+                    <td className="indent">Suki Credit Account Collections</td>
+                    <td className="text-right tabular-nums">₱50,000.00</td>
+                  </tr>
+                  <tr className="pl-subtotal">
+                    <td>TOTAL OPERATING REVENUE</td>
+                    <td className="text-right tabular-nums" style={{ color: '#078a76', fontWeight: 700 }}>
+                      ₱684,250.00
+                    </td>
+                  </tr>
+
+                  {/* COGS Section */}
+                  <tr className="pl-header">
+                    <td>2. Cost of Goods Sold (COGS)</td>
+                    <td className="text-right">Amount (₱)</td>
+                  </tr>
+                  <tr className="pl-row">
+                    <td className="indent">SEAOIL Makar Bulk Terminal Purchases</td>
+                    <td className="text-right tabular-nums">₱394,600.00</td>
+                  </tr>
+                  <tr className="pl-row">
+                    <td className="indent">Terminal Freight, Hauling & Pumping Fee</td>
+                    <td className="text-right tabular-nums">₱18,200.00</td>
+                  </tr>
+                  <tr className="pl-subtotal">
+                    <td>TOTAL COST OF SALES</td>
+                    <td className="text-right tabular-nums" style={{ color: '#b23942', fontWeight: 700 }}>
+                      ₱412,800.00
+                    </td>
+                  </tr>
+                  <tr className="pl-subtotal" style={{ background: '#f8fafc' }}>
+                    <td>GROSS OPERATING MARGIN (39.7%)</td>
+                    <td className="text-right tabular-nums" style={{ color: '#0f172a', fontWeight: 700 }}>
+                      ₱271,450.00
+                    </td>
+                  </tr>
+
+                  {/* Operating Expenses Section */}
+                  <tr className="pl-header">
+                    <td>3. Operating Expenses (OPEX)</td>
+                    <td className="text-right">Amount (₱)</td>
+                  </tr>
+                  <tr className="pl-row">
+                    <td className="indent">Rider Fuel Advances & Fleet Maintenance</td>
+                    <td className="text-right tabular-nums">₱54,200.00</td>
+                  </tr>
+                  <tr className="pl-row">
+                    <td className="indent">Station Staff Salaries & Daily Allowances</td>
+                    <td className="text-right tabular-nums">₱98,000.00</td>
+                  </tr>
+                  <tr className="pl-row">
+                    <td className="indent">Terminal Electricity, Utilities & Facility Rent</td>
+                    <td className="text-right tabular-nums">₱24,500.00</td>
+                  </tr>
+                  <tr className="pl-row">
+                    <td className="indent">DOE Permits, BIR Seals & BPS Requal Fees</td>
+                    <td className="text-right tabular-nums">₱12,760.00</td>
+                  </tr>
+                  <tr className="pl-subtotal">
+                    <td>TOTAL OPERATING OVERHEAD</td>
+                    <td className="text-right tabular-nums" style={{ color: '#b23942', fontWeight: 700 }}>
+                      ₱189,460.00
+                    </td>
+                  </tr>
+
+                  {/* Net Operating Income */}
+                  <tr className="pl-net">
+                    <td>NET STATION PROFIT (12.0% Margin)</td>
+                    <td className="text-right tabular-nums" style={{ fontSize: 16 }}>
+                      ₱81,990.00
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div style={{ padding: '14px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: '#64748b' }}>
+                  Certified by: {settings.stationOwner} (Owner & Station Licensee) · BIR TIN {settings.stationTin} · DOE Permit: {settings.doePermit}
+                </span>
+                <Button
+                  variant="ghost"
+                  onClick={() => showToast('Exported official P&L spreadsheet (Excel)!')}
+                >
+                  Export P&L
+                </Button>
               </div>
             </Card>
-
-            <Card>
-              <CardTitle title="Operational Summary" />
-              {[
-                ['Ending Cylinder Inventory', '1,024'],
-                ['Sold / Exchanged', '836'],
-                ['Outstanding Loan Balance', '₱120,000'],
-                ['Interest Paid', '₱8,450'],
-                ['Active Staff', '12'],
-              ].map((x) => (
-                <div className="summary-row" key={x[0]}>
-                  <span>{x[0]}</span>
-                  <strong>{x[1]}</strong>
-                </div>
-              ))}
-            </Card>
           </div>
-        </>
-      ) : tab === 'DOE Stock Movement Report' ? (
-        <>
+        </div>
+      )}
+
+      {/* ── TAB 2: DOE STOCK MOVEMENT REPORT (RA 11592) ── */}
+      {tab === 'DOE Stock Movement (RA 11592)' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="compliance-banner">
             <Icon name="check" />
             <div>
-              <strong>Daily Movement Balanced</strong>
-              <span>All SKUs reconcile with zero audit variance. Report is ready for regulatory submission.</span>
+              <strong>Official DOE RA 11592 Cylinder Fleet Reconciliation — Region XII</strong>
+              <span>
+                Mandatory monthly report required under Philippine LPG Safety Law. Tracks full cylinder inflows from SEAOIL Makar Terminal, counter/dispatch sales, empty basyo retrieval, and plant returns.
+              </span>
             </div>
-            <Badge>DOE Compliant</Badge>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Badge>Permit: R12-DOE-LPG-0914</Badge>
+              <Badge>0 Drift · Compliant</Badge>
+            </div>
           </div>
+
           <Card className="records-card master-table compliance-table">
-            <CardTitle icon="chart" title="Beginning-to-Ending Stock Movement" subtitle="Quantities shown as Full (F) and Empty (E) cylinders" />
-            <DataTable
-              columns={[
-                'SKU & Brand',
-                'Valve Spec',
-                'Opening Full / Empty',
-                'Supplier In',
-                'Walk-in Sold',
-                'Delivery Sold',
-                'Empties In',
-                'Empties to Plant',
-                'Ending Full / Empty',
-                'Audit Variance',
-              ]}
-              rows={stockRows}
+            <CardTitle
+              icon="chart"
+              title={`Department of Energy Monthly Stock Reconciliation (${period})`}
+              subtitle="All counts verified against physical yard logs, dispatch trip tickets, and depot delivery receipts"
+              action={
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Button
+                    variant="secondary"
+                    icon="receipt"
+                    onClick={() => showToast('Printing DOE Form Annex B Official Certificate...')}
+                  >
+                    Print DOE Return
+                  </Button>
+                  <Button
+                    icon="download"
+                    onClick={() => showToast('Downloaded: DOE_Annex_B_LPG_Monthly_Report.csv')}
+                  >
+                    Export DOE Form
+                  </Button>
+                </div>
+              }
             />
+
+            <div className="ops-table-wrap">
+              <table className="ops-table-fixed">
+                <colgroup>
+                  <col style={{ width: '220px' }} />
+                  <col style={{ width: '130px' }} />
+                  <col style={{ width: '110px' }} />
+                  <col style={{ width: '90px' }} />
+                  <col style={{ width: '95px' }} />
+                  <col style={{ width: '95px' }} />
+                  <col style={{ width: '90px' }} />
+                  <col style={{ width: '105px' }} />
+                  <col style={{ width: '115px' }} />
+                  <col style={{ width: '115px' }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th className="text-left">SKU & Cylinder Class</th>
+                    <th className="text-left">Valve Specification</th>
+                    <th className="text-right">Opening (F / E)</th>
+                    <th className="text-right">Depot In</th>
+                    <th className="text-right">Counter Out</th>
+                    <th className="text-right">Delivery Out</th>
+                    <th className="text-right">Empties In</th>
+                    <th className="text-right">Plant Return</th>
+                    <th className="text-right">Ending (F / E)</th>
+                    <th className="text-center">Audit Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stockRows.map((r, i) => (
+                    <tr key={i}>
+                      <td>
+                        <strong style={{ color: '#163652', display: 'block' }}>{r.sku}</strong>
+                      </td>
+                      <td style={{ color: '#64748b', fontSize: 12 }}>{r.valve}</td>
+                      <td className="text-right tabular-nums">{r.begF} F / {r.begE} E</td>
+                      <td className="text-right tabular-nums" style={{ color: '#078a76', fontWeight: 600 }}>
+                        {r.depotIn > 0 ? `+${r.depotIn} F` : '—'}
+                      </td>
+                      <td className="text-right tabular-nums" style={{ color: '#b23942' }}>
+                        {r.counterOut > 0 ? `−${r.counterOut} F` : '—'}
+                      </td>
+                      <td className="text-right tabular-nums" style={{ color: '#b23942' }}>
+                        {r.deliveryOut > 0 ? `−${r.deliveryOut} F` : '—'}
+                      </td>
+                      <td className="text-right tabular-nums" style={{ color: '#1877c9', fontWeight: 600 }}>
+                        {r.emptiesIn > 0 ? `+${r.emptiesIn} E` : '—'}
+                      </td>
+                      <td className="text-right tabular-nums" style={{ color: '#6b51ad' }}>
+                        {r.plantOut > 0 ? `−${r.plantOut} E` : '—'}
+                      </td>
+                      <td className="text-right tabular-nums" style={{ fontWeight: 700, color: '#0e2b45' }}>
+                        {r.endF} F / {r.endE} E
+                      </td>
+                      <td className="text-center">
+                        <StatusChip tone={r.status.includes('Balanced') ? 'ok' : r.status.includes('Locked') ? 'danger' : 'warning'}>
+                          {r.status}
+                        </StatusChip>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr style={{ background: '#f8fafc', fontWeight: 700 }}>
+                    <td>Total Station Fleet Inventory</td>
+                    <td>Official Tally</td>
+                    <td className="text-right tabular-nums">428 F / 195 E</td>
+                    <td className="text-right tabular-nums" style={{ color: '#078a76' }}>+80 F</td>
+                    <td className="text-right tabular-nums" style={{ color: '#b23942' }}>−43 F</td>
+                    <td className="text-right tabular-nums" style={{ color: '#b23942' }}>−37 F</td>
+                    <td className="text-right tabular-nums" style={{ color: '#1877c9' }}>+95 E</td>
+                    <td className="text-right tabular-nums" style={{ color: '#6b51ad' }}>−95 E</td>
+                    <td className="text-right tabular-nums" style={{ color: '#078a76' }}>428 F / 170 E</td>
+                    <td className="text-center">
+                      <StatusChip tone="ok">✓ 0 Drift</StatusChip>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, margin: '14px 20px 20px' }}>
+              <div style={{ padding: '12px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }}>
+                <strong style={{ color: '#0f172a', display: 'block', marginBottom: 4 }}>
+                  BPS 5-Year Hydrostatic Requalification Check
+                </strong>
+                <span style={{ color: '#64748b' }}>
+                  All 428 full tanks hold valid collar test stamps (2023–2025). 4 quarantined empty shells segregated in locked holding bay awaiting terminal hydro-testing.
+                </span>
+              </div>
+              <div style={{ padding: '12px 16px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12 }}>
+                <strong style={{ color: '#0f172a', display: 'block', marginBottom: 4 }}>
+                  DOE Regional Office Verification
+                </strong>
+                <span style={{ color: '#64748b' }}>
+                  Report certified under penalty of license revocation pursuant to Section 18 of Republic Act No. 11592. GenSan Terminal Inspector: Engr. R. Alcantara (DOE-R12).
+                </span>
+              </div>
+            </div>
           </Card>
-        </>
-      ) : (
+        </div>
+      )}
+
+      {/* ── TAB 3: IMMUTABLE AUDIT TRAIL ── */}
+      {tab === 'Immutable Audit Trail' && (
         <Card className="records-card master-table">
-          <div className="toolbar">
-            <SearchField value={search} onChange={setSearch} placeholder="Search audit logs by staff or action..." />
-            <Button variant="secondary" icon="download" onClick={() => showToast('Downloaded: Audit_Logs_Export.csv')}>
-              Export Audit Trail
-            </Button>
-          </div>
-          <DataTable
-            columns={['Date', 'Time', 'Staff Code', 'Action Type', 'Details', 'Record']}
-            rows={filteredAudit}
+          <CardTitle
+            icon="shield"
+            title="Permanent Station Operational Audit Trail"
+            subtitle="Immutable event logs recording all invoices, trip manifests, AR lock overrides, QC receiving inspections, and EOD closings"
+            action={<Badge>{filteredAudit.length} Verified Records</Badge>}
           />
+
+          {/* Search & Category Filter Toolbar */}
+          <div style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <SearchField
+                value={search}
+                onChange={setSearch}
+                placeholder="Search audit trail by operator, action, record ref, or customer..."
+              />
+              <Button
+                variant="secondary"
+                icon="download"
+                onClick={() => showToast('Downloaded: Complete_Audit_Trail_Ledger.csv')}
+              >
+                Export Audit Trail
+              </Button>
+            </div>
+
+            {/* Category Filter Pills */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                { key: 'All', label: 'All Events', count: auditEntries.length },
+                { key: 'POS Sales', label: 'Counter Sales', count: auditEntries.filter(e => e.category === 'POS Sales').length },
+                { key: 'Dispatches', label: 'Route Deliveries', count: auditEntries.filter(e => e.category === 'Dispatches').length },
+                { key: 'AR Overrides', label: 'Supervisor Overrides', count: auditEntries.filter(e => e.category === 'AR Overrides').length },
+                { key: 'Receiving QC', label: 'Stock Receiving QC', count: auditEntries.filter(e => e.category === 'Receiving QC').length },
+                { key: 'EOD Closing', label: 'Daily EOD Closings', count: auditEntries.filter(e => e.category === 'EOD Closing').length },
+              ].map(cat => (
+                <button
+                  key={cat.key}
+                  type="button"
+                  onClick={() => setAuditCategory(cat.key)}
+                  style={{
+                    height: 28,
+                    padding: '0 10px',
+                    borderRadius: 5,
+                    border: '1px solid',
+                    borderColor: auditCategory === cat.key ? '#078a76' : '#dce5ed',
+                    background: auditCategory === cat.key ? '#eaf8f5' : 'white',
+                    color: auditCategory === cat.key ? '#078a76' : '#475569',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <span>{cat.label}</span>
+                  <span style={{ opacity: 0.7, fontSize: 10 }}>({cat.count})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="ops-table-wrap">
+            <table className="ops-table-fixed">
+              <colgroup>
+                <col style={{ width: '150px' }} />
+                <col style={{ width: '130px' }} />
+                <col style={{ width: '170px' }} />
+                <col style={{ width: '130px' }} />
+                <col style={{ width: '150px' }} />
+                <col />
+                <col style={{ width: '90px' }} />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th className="text-left">Timestamp</th>
+                  <th className="text-left">Operator</th>
+                  <th className="text-left">Event Action</th>
+                  <th className="text-left">Record Ref</th>
+                  <th className="text-left">Counterparty / Hub</th>
+                  <th className="text-left">Transaction & Audit Context</th>
+                  <th className="text-center">Inspector</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAudit.map((r, i) => (
+                  <tr key={i} style={{ cursor: 'pointer' }} onClick={() => setInspectingEvent(r)}>
+                    <td style={{ color: '#64748b', fontSize: 12 }}>{r.time}</td>
+                    <td>
+                      <strong style={{ color: '#0f172a', display: 'block', fontSize: 12 }}>{r.staffName}</strong>
+                      <span className="cell-mono" style={{ color: '#64748b', fontSize: 10 }}>{r.staffCode}</span>
+                    </td>
+                    <td>
+                      <StatusChip tone={r.category === 'AR Overrides' ? 'warning' : r.category === 'EOD Closing' ? 'ok' : 'neutral'}>
+                        {r.action}
+                      </StatusChip>
+                    </td>
+                    <td className="cell-mono" style={{ color: '#1877c9', fontWeight: 600 }}>{r.ref}</td>
+                    <td style={{ fontWeight: 600, fontSize: 12, color: '#334155' }}>{r.counterparty}</td>
+                    <td className="cell-truncate" style={{ color: '#475569', fontSize: 12 }} title={r.details}>
+                      {r.details}
+                    </td>
+                    <td className="text-center">
+                      <Button
+                        variant="ghost"
+                        style={{ height: 26, fontSize: 11, padding: '0 8px' }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setInspectingEvent(r)
+                        }}
+                      >
+                        Inspect
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
       )}
+
+      {/* ── TAB 4: CREDIT EXPOSURE & LIABILITIES ── */}
+      {tab === 'Credit Exposure & Liabilities' && (
+        <div className="credit-exposure-page">
+
+          {/* ── TIER 1: KPI STRIP ── */}
+          <StatStrip
+            stats={[
+              { label: 'Total Credit Receivables', value: '₱184,500.00', sub: '18 commercial suki accounts', status: 'info' },
+              { label: 'Overdue ≥30 Days', value: '₱22,500.00', sub: 'ABC Restaurant · Auto Hard-Locked', status: 'danger' },
+              { label: 'Cylinder Float on Street', value: '48 Tanks', sub: '2 accounts over float limit', status: 'warning' },
+              { label: 'Deposit Escrow Liability', value: '₱1,843,200.00', sub: '100% cash-backed trust reserve', status: 'ok' },
+            ]}
+          />
+
+          {/* ── BREACH ALERT BANNER ── */}
+          {creditExposureData.filter(c => c.status.includes('Locked')).length > 0 && (
+            <div className="exposure-breach-banner">
+              <div className="exposure-breach-icon"><Icon name="shield" size={18} /></div>
+              <div className="exposure-breach-body">
+                <strong>{creditExposureData.filter(c => c.status.includes('Locked')).length} Accounts in Hard-Lock</strong>
+                <span>{creditExposureData.filter(c => c.status.includes('Locked')).map(c => c.name).join(' · ')} — POS & dispatch release blocked until violations resolved.</span>
+              </div>
+              <button className="btn btn-sm" style={{ flexShrink: 0, fontSize: 11 }} onClick={() => setPage('AR & Credit Risk Control')}>
+                View AR Risk Engine →
+              </button>
+            </div>
+          )}
+
+          {/* ── TIER 2: FULL-WIDTH EXPOSURE TABLE ── */}
+          <Card>
+            <CardTitle
+              icon="coins"
+              title="Commercial Credit Exposure Ledger"
+              subtitle="Dual-breach monitoring — invoice aging lock & steel cylinder float limits"
+              action={<div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <Badge>{creditExposureData.filter(c => c.status.includes('Locked')).length} Locked</Badge>
+                <Badge>{creditExposureData.length} Accounts</Badge>
+              </div>}
+            />
+            <div className="ops-table-wrap">
+              <table className="ops-table-fixed">
+                <colgroup>
+                  <col style={{ width: '200px' }} />
+                  <col style={{ width: '120px' }} />
+                  <col style={{ width: '220px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '130px' }} />
+                  <col style={{ width: '120px' }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th className="text-left">Customer / Tier</th>
+                    <th className="text-right">Outstanding</th>
+                    <th className="text-left" style={{ paddingLeft: 14 }}>Credit Utilization</th>
+                    <th className="text-right">Aging</th>
+                    <th className="text-right">Float / Limit</th>
+                    <th className="text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {creditExposureData.map((c, i) => {
+                    const utilPct = Math.min(100, Math.round((c.balance / c.creditLimit) * 100))
+                    const isLocked = c.status.includes('Locked')
+                    const isAgingBreach = c.oldestDays >= 30
+                    const isFloatBreach = c.float > c.maxFloat
+                    return (
+                      <tr key={i} className={isLocked ? 'exposure-row-locked' : ''}>
+                        <td>
+                          <strong style={{ color: '#0f172a', display: 'block', fontSize: 13 }}>{c.name}</strong>
+                          <span className="ops-cell-sub">{c.tier}</span>
+                        </td>
+                        <td className="text-right tabular-nums" style={{ fontWeight: 700, fontSize: 13 }}>
+                          ₱{c.balance.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ paddingLeft: 14 }}>
+                          <div className="exposure-util-wrap">
+                            <div className="exposure-util-bar">
+                              <div
+                                className={`exposure-util-fill ${utilPct >= 80 ? 'danger' : utilPct >= 60 ? 'warn' : 'ok'}`}
+                                style={{ width: `${utilPct}%` }}
+                              />
+                            </div>
+                            <span className="exposure-util-label">
+                              {utilPct}% of ₱{(c.creditLimit / 1000).toFixed(0)}K limit
+                            </span>
+                          </div>
+                        </td>
+                        <td className="text-right tabular-nums">
+                          <span className={`exposure-aging-badge ${isAgingBreach ? 'breach' : c.oldestDays >= 15 ? 'warn' : 'ok'}`}>
+                            {c.oldestDays}d
+                          </span>
+                        </td>
+                        <td className="text-right tabular-nums">
+                          <div className="exposure-float-cell">
+                            <span className={isFloatBreach ? 'exposure-float-breach' : ''}>{c.float}</span>
+                            <span className="exposure-float-max">/ {c.maxFloat}</span>
+                          </div>
+                        </td>
+                        <td className="text-center">
+                          <StatusChip tone={isLocked ? 'danger' : 'ok'}>
+                            {isLocked ? (isAgingBreach && isFloatBreach ? 'Dual Breach' : isAgingBreach ? 'Aging Lock' : 'Float Lock') : 'Good'}
+                          </StatusChip>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="exposure-totals-row">
+                    <td><strong>Total Exposure</strong></td>
+                    <td className="text-right tabular-nums">
+                      <strong>₱{creditExposureData.reduce((s,c) => s + c.balance, 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
+                    </td>
+                    <td colSpan={4} style={{ paddingLeft: 14, color: '#64748b', fontSize: 11 }}>
+                      Combined credit limit: ₱{creditExposureData.reduce((s,c) => s + c.creditLimit, 0).toLocaleString('en-PH')} · Avg utilization: {Math.round(creditExposureData.reduce((s,c) => s + (c.balance/c.creditLimit)*100, 0) / creditExposureData.length)}%
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </Card>
+
+          {/* ── TIER 3: BOTTOM 2-COL — AGING WATERFALL + ESCROW TRUST ── */}
+          <div className="exposure-bottom-grid">
+
+            {/* Aging Bucket Waterfall */}
+            <Card>
+              <CardTitle
+                icon="clock"
+                title="Receivables Aging Waterfall"
+                subtitle="Invoice aging buckets — overdue concentration by days outstanding"
+              />
+              <div className="aging-waterfall">
+                {[
+                  { label: 'Current (0–14d)', amount: 104200, pct: 56, tone: 'ok' },
+                  { label: '15–29 Days', amount: 58000, pct: 31, tone: 'warn' },
+                  { label: '30–44 Days', amount: 16500, pct: 9, tone: 'danger' },
+                  { label: '45+ Days (Doubtful)', amount: 5800, pct: 3, tone: 'danger' },
+                ].map((bucket, i) => (
+                  <div key={i} className="aging-bucket-row">
+                    <div className="aging-bucket-label">
+                      <span>{bucket.label}</span>
+                      <strong className="tabular-nums">₱{bucket.amount.toLocaleString('en-PH')}</strong>
+                    </div>
+                    <div className="aging-bucket-track">
+                      <div className={`aging-bucket-fill ${bucket.tone}`} style={{ width: `${bucket.pct}%` }} />
+                    </div>
+                    <span className={`aging-bucket-pct ${bucket.tone}`}>{bucket.pct}%</span>
+                  </div>
+                ))}
+                <div className="aging-waterfall-total">
+                  <span>Total AR Receivables</span>
+                  <strong className="tabular-nums">₱184,500.00</strong>
+                </div>
+              </div>
+            </Card>
+
+            {/* Cylinder Deposit Escrow Trust */}
+            <Card>
+              <CardTitle
+                icon="cylinder"
+                title="Cylinder Deposit Escrow Trust"
+                subtitle="Refundable cash held in segregated trust — never recognized as revenue"
+                action={<span className="status-chip" style={{ background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }}>✓ Fully Backed</span>}
+              />
+              <div className="escrow-trust-body">
+                {[
+                  { label: '11.0 kg Household Shells', count: 824, unit: '₱1,800', total: 1483200 },
+                  { label: '50.0 kg Industrial Heavy', count: 68, unit: '₱4,500', total: 306000 },
+                  { label: '2.7 kg Camping Compact', count: 57, unit: '₱950', total: 54150 },
+                ].map((row, i) => (
+                  <div key={i} className="escrow-line">
+                    <div className="escrow-line-meta">
+                      <Icon name="cylinder" size={13} />
+                      <div>
+                        <strong>{row.label}</strong>
+                        <span>{row.count} cylinders × {row.unit} escrow value</span>
+                      </div>
+                    </div>
+                    <strong className="tabular-nums escrow-line-amount">
+                      ₱{row.total.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                    </strong>
+                  </div>
+                ))}
+
+                <div className="escrow-trust-total">
+                  <div>
+                    <strong>Total Deposit Escrow Liability</strong>
+                    <span>BDO GenSan Escrow Acct #104-982-119</span>
+                  </div>
+                  <strong className="tabular-nums" style={{ fontSize: 22, color: '#0f766e' }}>₱1,843,350.00</strong>
+                </div>
+
+                <div className="escrow-trust-notice">
+                  <Icon name="check" size={14} />
+                  <span>All deposits held in a segregated fund. 100% refundable upon cylinder return. Never co-mingled with operating cash.</span>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* ── AUDIT LOG INTEGRITY & EVENT INSPECTOR MODAL ── */}
+      {inspectingEvent && (
+        <div className="modal-backdrop document-backdrop" onClick={() => setInspectingEvent(null)}>
+          <div className="document-modal audit-inspector-modal" onClick={(e) => e.stopPropagation()}>
+            <button className="document-close" onClick={() => setInspectingEvent(null)} aria-label="Close Audit Inspector">✕</button>
+
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <Icon name="shield" size={20} />
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 16, color: '#0f172a' }}>Immutable Audit Event Inspector</h3>
+                  <span style={{ fontSize: 12, color: '#64748b' }}>Cryptographic verification of station operations log</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14, fontSize: 13 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Event Timestamp</span>
+                  <div style={{ fontWeight: 600, color: '#0f172a', marginTop: 3 }}>{inspectingEvent.time}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Record Reference</span>
+                  <div className="cell-mono" style={{ fontWeight: 700, color: '#1877c9', marginTop: 3 }}>{inspectingEvent.ref}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Operator Attribution</span>
+                  <div style={{ fontWeight: 600, color: '#0f172a', marginTop: 3 }}>{inspectingEvent.staffName} ({inspectingEvent.staffCode})</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Event Classification</span>
+                  <div style={{ marginTop: 3 }}>
+                    <StatusChip tone="ok">{inspectingEvent.action}</StatusChip>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Counterparty / Terminal Node</span>
+                <div style={{ fontWeight: 600, color: '#0f172a', marginTop: 3 }}>{inspectingEvent.counterparty}</div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Event Context & Audit Payload</span>
+                <div style={{ padding: '12px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 6, color: '#334155', marginTop: 4, lineHeight: 1.5 }}>
+                  {inspectingEvent.details}
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>SHA-256 Ledger Cryptographic Hash</span>
+                <code className="audit-hash-badge" style={{ marginTop: 4 }}>
+                  {inspectingEvent.hash} · [BLOCK #841920 · MERKLE ROOT VALID]
+                </code>
+              </div>
+            </div>
+
+            <div style={{ padding: '14px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: '#078a76', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>✓</span> Tamper-Evident Ledger Integrity Confirmed
+              </span>
+              <Button onClick={() => setInspectingEvent(null)}>Close Inspector</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StationSettings() {
+  const { settings, setSettings } = useStationSettings()
+  const [initialSettings, setInitialSettings] = useState(settings)
+  const [tab, setTab] = useState('Pricing & Delivery')
+  const [toast, setToast] = useState('')
+  const [showPin, setShowPin] = useState(false)
+
+  const isDirty = useMemo(() => {
+    return JSON.stringify(settings) !== JSON.stringify(initialSettings)
+  }, [settings, initialSettings])
+
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 2800)
+  }
+
+  function handleUpdate(field: keyof StationSettingsData, val: string) {
+    setSettings(prev => ({ ...prev, [field]: val }))
+  }
+
+  function handleSave(e: FormEvent) {
+    e.preventDefault()
+    setInitialSettings(settings)
+    showToast('All station parameters, VAT rates, credit terms, and credentials saved successfully!')
+  }
+
+  function handleCancel() {
+    setSettings(initialSettings)
+    showToast('Changes discarded.')
+  }
+
+  function handleReset() {
+    setSettings(defaultStationSettings)
+    showToast('Parameters reset to default station standards.')
+  }
+
+
+  return (
+    <div className="page module-page">
+      {toast && <div className="toast"><span>✓</span>{toast}</div>}
+
+      <MasterHeader
+        title="Settings & System Configuration"
+        subtitle="Manage official LPG refill pricing, VAT and tax rates, credit aging days, cylinder safety tolerances, and station security credentials."
+        actions={
+          <div style={{ display: 'flex', gap: 8 }}>
+            {isDirty && (
+              <Button variant="secondary" onClick={handleCancel}>Discard Changes</Button>
+            )}
+            <Button variant="secondary" onClick={handleReset}>Reset Defaults</Button>
+            <Button icon="check" onClick={handleSave} disabled={!isDirty}>Save Settings</Button>
+          </div>
+        }
+      />
+
+      <StatStrip
+        stats={[
+          {
+            label: '11kg Standard Refill',
+            value: `₱${settings.refill11kg}`,
+            sub: 'DOE Regulated Household Benchmark',
+            status: 'ok',
+          },
+          {
+            label: 'Tax & VAT Treatment',
+            value: settings.taxRegistration.includes('Non-VAT') ? 'Non-VAT (0%)' : `VAT (${settings.vatRate}%)`,
+            sub: `${settings.statutoryDiscount}% Senior/PWD Discount`,
+            status: 'info',
+          },
+          {
+            label: 'Credit Aging Hard-Lock',
+            value: `${settings.agingLockDays} Days`,
+            sub: `Warning alert at ${settings.agingWarnDays} days`,
+            status: 'danger',
+          },
+          {
+            label: 'Safety Requalification',
+            value: `${settings.requalYears} Years (RA 11592)`,
+            sub: `${settings.minNetWeight11kg}–${settings.maxNetWeight11kg} kg Net Gas`,
+            status: 'ok',
+          },
+        ]}
+      />
+
+
+
+      {isDirty && (
+        <div className="unsaved-bar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="clock" size={16} />
+            <strong>You have unsaved changes to station parameters.</strong>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="secondary" onClick={handleCancel} style={{ height: 28, fontSize: 12, padding: '0 10px' }}>Cancel</Button>
+            <Button onClick={handleSave} style={{ height: 28, fontSize: 12, padding: '0 10px' }}>Save Now</Button>
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={handleSave}>
+      <div className="settings-modern-container">
+        <aside className="settings-nav-panel">
+          {[
+            { id: 'Pricing & Delivery', label: 'Pricing & Delivery', icon: 'receipt' as const },
+            { id: 'Cylinder Deposits', label: 'Cylinder Deposits', icon: 'cylinder' as const },
+            { id: 'Tax, VAT & Invoicing', label: 'Tax, VAT & Invoicing', icon: 'coins' as const },
+            { id: 'Credit Terms & Days', label: 'Credit Terms & Days', icon: 'shield' as const },
+            { id: 'Safety & RA 11592 QC', label: 'Safety & RA 11592 QC', icon: 'check' as const },
+            { id: 'Station & Security PINs', label: 'Station & Security PINs', icon: 'user' as const },
+          ].map(item => (
+            <button
+              key={item.id}
+              type="button"
+              className={`settings-nav-item ${tab === item.id ? 'active' : ''}`}
+              onClick={() => setTab(item.id)}
+            >
+              <span className="settings-nav-icon"><Icon name={item.icon} size={16} /></span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </aside>
+
+        <main className="settings-content-pane">
+          {/* Card 1: Standard Retail Refill Prices & Delivery Fees */}
+          {tab === 'Pricing & Delivery' && (
+            <Card className="settings-section-card">
+              <CardTitle
+                icon="receipt"
+                title="Refill Pricing & Logistics Fees"
+                subtitle="Regulated consumer prices per cylinder SKU and route delivery fees"
+              />
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>11.0 kg Household Refill (POL & Snap-On)</strong>
+                  <span>Standard consumer retail refill price</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.refill11kg}`}
+                  onChange={e => handleUpdate('refill11kg', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>50.0 kg Industrial Heavy Refill</strong>
+                  <span>Commercial restaurants & bakeries bulk refill</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.refill50kg}`}
+                  onChange={e => handleUpdate('refill50kg', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>2.7 kg Camping Refill</strong>
+                  <span>Compact portable camping tank refills</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.refill2kg}`}
+                  onChange={e => handleUpdate('refill2kg', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Cross-Brand Palit-Basyo Surcharge</strong>
+                  <span>Inspection & swapping fee for non-SEAGAS basyo</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.offBrandFee}`}
+                  onChange={e => handleUpdate('offBrandFee', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Standard Delivery Drop Service Fee</strong>
+                  <span>Applied per delivery ticket (free for contracted suki)</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.deliveryFee}`}
+                  onChange={e => handleUpdate('deliveryFee', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Retained Morning Till Cash Float</strong>
+                  <span>Standard float retained in drawer after EOD cash drop</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.morningFloat}`}
+                  onChange={e => handleUpdate('morningFloat', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* Card 2: Cylinder Deposit Replacement Values */}
+          {tab === 'Cylinder Deposits' && (
+            <Card className="settings-section-card">
+              <CardTitle
+                icon="cylinder"
+                title="Cylinder Deposit Replacement Values"
+                subtitle="Cash deposit liabilities held in escrow for new cylinder releases"
+              />
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>11.0 kg Steel Shell Deposit</strong>
+                  <span>100% refundable upon surrender of sound shell</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.deposit11kg}`}
+                  onChange={e => handleUpdate('deposit11kg', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>50.0 kg Industrial Shell Deposit</strong>
+                  <span>Commercial deposit held in segregated escrow</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.deposit50kg}`}
+                  onChange={e => handleUpdate('deposit50kg', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>2.7 kg Camping Shell Deposit</strong>
+                  <span>Portable tank replacement liability</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.deposit2kg}`}
+                  onChange={e => handleUpdate('deposit2kg', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Damaged / Scrapped Shell Deduction</strong>
+                  <span>Deduction applied to unserviceable returned shells</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.scrapPenalty}`}
+                  onChange={e => handleUpdate('scrapPenalty', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* Card 3: Tax, VAT Rates & Official Invoicing Rules */}
+          {tab === 'Tax, VAT & Invoicing' && (
+            <Card className="settings-section-card">
+              <CardTitle
+                icon="coins"
+                title="Tax, VAT Rates & Invoicing Rules"
+                subtitle="Configure BIR tax classification, statutory discounts, and document numbering"
+              />
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Tax Registration Classification</strong>
+                  <span>Determines whether VAT is applied on invoices</span>
+                </div>
+                <select
+                  className="settings-field-input"
+                  style={{ width: 160, textAlign: 'left', height: 36 }}
+                  value={settings.taxRegistration}
+                  onChange={e => {
+                    handleUpdate('taxRegistration', e.target.value)
+                    if (e.target.value === '12% VAT Registered') {
+                      handleUpdate('vatRate', '12.00')
+                    } else {
+                      handleUpdate('vatRate', '0.00')
+                    }
+                  }}
+                >
+                  <option value="Non-VAT Registered">Non-VAT Registered (0%)</option>
+                  <option value="12% VAT Registered">12% VAT Registered</option>
+                </select>
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Applicable VAT Rate (%)</strong>
+                  <span>Standard Philippine Value Added Tax rate</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`${settings.vatRate}%`}
+                  onChange={e => handleUpdate('vatRate', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Senior Citizen / PWD LPG Discount (%)</strong>
+                  <span>Statutory 5% discount on 11kg household LPG (RA 9994/RA 10754)</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`${settings.statutoryDiscount}%`}
+                  onChange={e => handleUpdate('statutoryDiscount', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Official Sales Invoice Prefix</strong>
+                  <span>Series prefix printed on counter POS receipts</span>
+                </div>
+                <input
+                  className="settings-field-input"
+                  style={{ textAlign: 'left', width: 130 }}
+                  value={settings.invoicePrefix}
+                  onChange={e => handleUpdate('invoicePrefix', e.target.value)}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Delivery Receipt (DR) Prefix</strong>
+                  <span>Series prefix printed on route dispatch trip manifests</span>
+                </div>
+                <input
+                  className="settings-field-input"
+                  style={{ textAlign: 'left', width: 130 }}
+                  value={settings.deliveryReceiptPrefix}
+                  onChange={e => handleUpdate('deliveryReceiptPrefix', e.target.value)}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Official Deposit Slip (DS) Prefix</strong>
+                  <span>Issued when a customer rents a new cylinder shell</span>
+                </div>
+                <input
+                  className="settings-field-input"
+                  style={{ textAlign: 'left', width: 130 }}
+                  value={settings.depositSlipPrefix}
+                  onChange={e => handleUpdate('depositSlipPrefix', e.target.value)}
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* Card 4: Credit Terms, Aging & Float Days */}
+          {tab === 'Credit Terms & Days' && (
+            <Card className="settings-section-card">
+              <CardTitle
+                icon="shield"
+                title="Credit Terms, Aging Thresholds & Float Days"
+                subtitle="Governs automated lock conditions, grace periods, and credit limits"
+              />
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Credit Aging Hard-Lock Threshold (Days)</strong>
+                  <span>Invoices older than this threshold trigger auto-lock on POS & Dispatch</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`${settings.agingLockDays} Days`}
+                  onChange={e => handleUpdate('agingLockDays', e.target.value.replace(/[^0-9]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Overdue Account Warning Threshold (Days)</strong>
+                  <span>Accounts approaching lock display caution alerts on cashier screens</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`${settings.agingWarnDays} Days`}
+                  onChange={e => handleUpdate('agingWarnDays', e.target.value.replace(/[^0-9]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Maximum Cylinder Basyo Return Window (Days)</strong>
+                  <span>Maximum allowed days for customer or driver to hold empty basyo</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`${settings.maxFloatReturnDays} Days`}
+                  onChange={e => handleUpdate('maxFloatReturnDays', e.target.value.replace(/[^0-9]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Commercial Default Credit Limit (₱)</strong>
+                  <span>Default credit ceiling for restaurants and commercial accounts</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.commCreditLimit}`}
+                  onChange={e => handleUpdate('commCreditLimit', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Residential Suki Credit Limit (₱)</strong>
+                  <span>Neighborhood walk-in passbook accounts</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`₱${settings.retailCreditLimit}`}
+                  onChange={e => handleUpdate('retailCreditLimit', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Commercial Loaned Float Ceiling (Tanks)</strong>
+                  <span>Maximum steel tanks commercial accounts can hold without deposit</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`${settings.defaultFloatLimit} tanks`}
+                  onChange={e => handleUpdate('defaultFloatLimit', e.target.value.replace(/[^0-9]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Residential Loaned Float Ceiling (Tanks)</strong>
+                  <span>Maximum steel tanks residential customers can hold</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`${settings.retailFloatLimit} tanks`}
+                  onChange={e => handleUpdate('retailFloatLimit', e.target.value.replace(/[^0-9]/g, ''))}
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* Card 5: Cylinder Safety & QC Tolerances (RA 11592) */}
+          {tab === 'Safety & RA 11592 QC' && (
+            <Card className="settings-section-card">
+              <CardTitle
+                icon="check"
+                title="Cylinder Safety & QC Tolerances (RA 11592)"
+                subtitle="Department of Energy safety law standards and scale compliance ranges"
+              />
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Mandatory Hydrostatic Requalification Cycle</strong>
+                  <span>Years between mandatory collar testing under PNS 03 / RA 11592</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`${settings.requalYears} Years`}
+                  onChange={e => handleUpdate('requalYears', e.target.value.replace(/[^0-9]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>11.0 kg Net Gas Weight Minimum Tolerance</strong>
+                  <span>Cylinders below this weight are rejected at receiving</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`${settings.minNetWeight11kg} kg`}
+                  onChange={e => handleUpdate('minNetWeight11kg', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>11.0 kg Net Gas Weight Maximum Tolerance</strong>
+                  <span>Cylinders above this weight are held for overfilling hazard</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`${settings.maxNetWeight11kg} kg`}
+                  onChange={e => handleUpdate('maxNetWeight11kg', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Spot Weight Scale Drift Tolerance</strong>
+                  <span>Maximum acceptable scale variance on spot weight checks</span>
+                </div>
+                <input
+                  className="settings-field-input tabular-nums"
+                  value={`±${settings.scaleTolerance} kg`}
+                  onChange={e => handleUpdate('scaleTolerance', e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* Card 6: Station Permits, Identity & Security Credentials */}
+          {tab === 'Station & Security PINs' && (
+            <Card className="settings-section-card">
+              <CardTitle
+                icon="user"
+                title="Station Identity, Permits & Security PINs"
+                subtitle="Official station permits, license numbers, and supervisor override codes"
+              />
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Station Registered Business Name</strong>
+                  <span>Printed on invoices, reports, and delivery receipts</span>
+                </div>
+                <input
+                  className="settings-field-input"
+                  style={{ textAlign: 'left', width: 220 }}
+                  value={settings.stationName}
+                  onChange={e => handleUpdate('stationName', e.target.value)}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Station Physical Address</strong>
+                  <span>Terminal operating facility address</span>
+                </div>
+                <input
+                  className="settings-field-input"
+                  style={{ textAlign: 'left', width: 260, fontSize: 11 }}
+                  value={settings.stationAddress}
+                  onChange={e => handleUpdate('stationAddress', e.target.value)}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Station Owner & Licensee</strong>
+                  <span>Authorized signatory for DOE reports and P&L</span>
+                </div>
+                <input
+                  className="settings-field-input"
+                  style={{ textAlign: 'left', width: 160 }}
+                  value={settings.stationOwner}
+                  onChange={e => handleUpdate('stationOwner', e.target.value)}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Station BIR Non-VAT TIN</strong>
+                  <span>Printed on official BIR invoices and receipts</span>
+                </div>
+                <input
+                  className="settings-field-input"
+                  style={{ textAlign: 'left', fontSize: 12, width: 160 }}
+                  value={settings.stationTin}
+                  onChange={e => handleUpdate('stationTin', e.target.value)}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>DOE LPG Standards Compliance Permit</strong>
+                  <span>Official Department of Energy regional permit number</span>
+                </div>
+                <input
+                  className="settings-field-input"
+                  style={{ textAlign: 'left', fontSize: 12, width: 160 }}
+                  value={settings.doePermit}
+                  onChange={e => handleUpdate('doePermit', e.target.value)}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Primary Bulk Depot Terminal Hub</strong>
+                  <span>Source hub for safety seals and receiving QC</span>
+                </div>
+                <input
+                  className="settings-field-input"
+                  style={{ textAlign: 'left', width: 240, fontSize: 11 }}
+                  value={settings.depotHub}
+                  onChange={e => handleUpdate('depotHub', e.target.value)}
+                />
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Supervisor Approval Gate PIN</strong>
+                  <span>Used to override AR & credit hard-locks (Demo: OWNER1234)</span>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input
+                    type={showPin ? 'text' : 'password'}
+                    className="settings-field-input"
+                    style={{ width: 110 }}
+                    value={settings.supervisorPin}
+                    onChange={e => handleUpdate('supervisorPin', e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ height: 36, padding: '0 12px', fontSize: 12 }}
+                    onClick={() => setShowPin(!showPin)}
+                  >
+                    {showPin ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </div>
+              <div className="settings-field-row">
+                <div className="settings-field-label">
+                  <strong>Daily Closing Sign-Off PIN</strong>
+                  <span>Used by owner to finalize shift and lock drawer (4829)</span>
+                </div>
+                <input
+                  type="password"
+                  className="settings-field-input"
+                  value={settings.closingPin}
+                  onChange={e => handleUpdate('closingPin', e.target.value)}
+                />
+              </div>
+            </Card>
+          )}
+        </main>
+      </div>
+      </form>
     </div>
   )
 }
@@ -4138,19 +7799,20 @@ function Topbar({ globalSearch, setGlobalSearch, setPage }: { globalSearch: stri
     const q = globalSearch.toLowerCase()
     const results: { label: string; sub: string; category: string; targetPage: string }[] = []
 
-    if ('maria santos'.includes(q) || 'makati'.includes(q)) results.push({ label: 'Maria Santos', sub: 'Mabini St., Makati · Suki Regular', category: 'Customer', targetPage: 'Customers & Suki' })
-    if ('abc restaurant'.includes(q) || 'ortigas'.includes(q)) results.push({ label: 'ABC Restaurant', sub: 'Ortigas Ave., Pasig · Suki Commercial', category: 'Customer', targetPage: 'Customers & Suki' })
-    if ('aling nena'.includes(q) || 'carinderia'.includes(q)) results.push({ label: "Aling Nena's Carinderia", sub: 'P. Burgos, Pasig', category: 'Customer', targetPage: 'Customers & Suki' })
+    if ('maria santos'.includes(q) || 'lagao'.includes(q)) results.push({ label: 'Maria Santos', sub: 'Brgy. Lagao, GenSan · Suki Regular', category: 'Customer', targetPage: 'Customers & Suki' })
+    if ('abc restaurant'.includes(q) || 'labangal'.includes(q)) results.push({ label: 'ABC Restaurant', sub: 'National Highway, Brgy. Labangal, GenSan · Suki Commercial', category: 'Customer', targetPage: 'Customers & Suki' })
+    if ('aling nena'.includes(q) || 'carinderia'.includes(q)) results.push({ label: "Aling Nena's Carinderia", sub: 'Brgy. City Heights, GenSan', category: 'Customer', targetPage: 'Customers & Suki' })
 
-    if ('pg-11-004521'.includes(q) || 'petron'.includes(q)) results.push({ label: 'PG-11-004521', sub: 'Petron Gasul 11kg · With Maria Santos', category: 'Cylinder', targetPage: 'Cylinders & Tanks' })
-    if ('sl-11-003998'.includes(q) || 'solane'.includes(q)) results.push({ label: 'SL-11-003998', sub: 'Solane 11kg CMP · Empty in Yard', category: 'Cylinder', targetPage: 'Cylinders & Tanks' })
-    if ('ph-11-004617'.includes(q) || 'phoenix'.includes(q)) results.push({ label: 'PH-11-004617', sub: 'Phoenix 11kg SNP · On Truck 03', category: 'Cylinder', targetPage: 'Cylinders & Tanks' })
+    if ('sg-11-004521'.includes(q) || 'seagas'.includes(q)) results.push({ label: 'SG-11-004521', sub: 'SEAGAS 11kg · Circulating Float', category: 'Cylinder', targetPage: 'Cylinder Fleet' })
+    if ('sg-11-003998'.includes(q) || 'seagas'.includes(q)) results.push({ label: 'SG-11-003998', sub: 'SEAGAS 11kg CMP · Empty in Yard', category: 'Cylinder', targetPage: 'Cylinder Fleet' })
+    if ('sg-11-004617'.includes(q) || 'seagas'.includes(q)) results.push({ label: 'SG-11-004617', sub: 'SEAGAS 11kg SNP · On Truck 03', category: 'Cylinder', targetPage: 'Cylinder Fleet' })
 
     if ('del-1018'.includes(q) || 'delivery'.includes(q)) results.push({ label: 'DEL-1018', sub: 'ABC Restaurant · Mark Ramos (ST003)', category: 'Delivery', targetPage: 'Deliveries & Dispatch' })
     if ('del-1019'.includes(q)) results.push({ label: 'DEL-1019', sub: 'Maria Santos · Nilo Cruz (ST005)', category: 'Delivery', targetPage: 'Deliveries & Dispatch' })
 
     if ('inv-2026-0315'.includes(q) || 'invoice'.includes(q)) results.push({ label: 'INV-2026-0315', sub: '₱1,200 · Maria Santos · Cash', category: 'Invoice', targetPage: 'POS (Sales & Exchange)' })
-    if ('reg-cmp-01'.includes(q) || 'regulator'.includes(q)) results.push({ label: 'Solane Snap-On Regulator', sub: 'REG-CMP-01 · 28 pcs', category: 'Inventory', targetPage: 'Store Inventory' })
+    if ('reg-cmp-01'.includes(q) || 'regulator'.includes(q)) results.push({ label: 'SEAGAS Snap-On Regulator', sub: 'REG-CMP-01 · 28 pcs', category: 'Inventory', targetPage: 'Store Inventory' })
+    if ('ar risk'.includes(q) || 'aging'.includes(q) || 'risk'.includes(q) || 'override'.includes(q) || 'gate'.includes(q)) results.push({ label: 'AR & Credit Risk Control', sub: 'Aging Hard Lock & Float Monitor (Supervisor Gate)', category: 'Risk Engine', targetPage: 'AR & Risk Control' })
 
     return results
   }, [globalSearch])
@@ -4208,30 +7870,46 @@ function Topbar({ globalSearch, setGlobalSearch, setPage }: { globalSearch: stri
 export default function App() {
   const [page, setPage] = useState('Dashboard')
   const [globalSearch, setGlobalSearch] = useState('')
+  const [settings, setSettings] = useState<StationSettingsData>(defaultStationSettings)
+
+  function updateSetting(field: keyof StationSettingsData, val: string) {
+    setSettings(prev => ({ ...prev, [field]: val }))
+  }
+
+  function saveSettings(newSettings: StationSettingsData) {
+    setSettings(newSettings)
+  }
+
+  function resetSettings() {
+    setSettings(defaultStationSettings)
+  }
 
   let screen: ReactNode
   if (page === 'Dashboard') screen = <Dashboard setPage={setPage} />
   else if (page === 'POS (Sales & Exchange)' || page === 'Sales & Exchange') screen = <SalesPOS />
   else if (page === 'Deliveries & Dispatch') screen = <DispatchSettlement />
   else if (page === 'Receiving & Stock In' || page === 'Receiving') screen = <ReceivingQC />
-  else if (page === 'Cylinders & Tanks' || page === 'Cylinders' || page === 'Daily Cylinder Movement Log') screen = <CylinderFleet setPage={setPage} />
+  else if (page === 'Cylinder Fleet' || page === 'Cylinders & Tanks' || page === 'Cylinders' || page === 'Daily Cylinder Movement Log') screen = <CylinderFleet setPage={setPage} />
   else if (page === 'Store Inventory') screen = <StoreInventory />
-  else if (page === 'Customers & Suki' || page === 'Customer Credit') screen = <CustomersSuki />
+  else if (page === 'Customers & Suki' || page === 'Customer Credit') screen = <CustomersSuki setPage={setPage} />
   else if (page === 'Staff & Riders') screen = <ModulePage page="Staff" setPage={setPage} />
+  else if (page === 'AR & Risk Control') screen = <ARRiskControl />
   else if (page === 'Expenses') screen = <OperationalExpenses />
   else if (page === 'Daily Closing') screen = <DailyClosingEOD />
   else if (page === 'Reports & Audit' || page === 'Reports & Analytics' || page === 'Daily Stock Movement Report' || page === 'Audit Logs') screen = <ReportsAndAudit setPage={setPage} />
-  else if (page === 'Settings') screen = <OperationsForm page="Settings" />
+  else if (page === 'Settings') screen = <StationSettings />
   else screen = <ModulePage page={page} setPage={setPage} />
 
   return (
-    <div className="app-shell">
-      <Sidebar page={page} setPage={setPage} />
-      <main>
-        <Topbar globalSearch={globalSearch} setGlobalSearch={setGlobalSearch} setPage={setPage} />
-        <div className="content">{screen}</div>
-      </main>
-    </div>
+    <SettingsContext.Provider value={{ settings, setSettings, updateSetting, saveSettings, resetSettings }}>
+      <div className="app-shell">
+        <Sidebar page={page} setPage={setPage} />
+        <main>
+          <Topbar globalSearch={globalSearch} setGlobalSearch={setGlobalSearch} setPage={setPage} />
+          <div className="content">{screen}</div>
+        </main>
+      </div>
+    </SettingsContext.Provider>
   )
 }
 
